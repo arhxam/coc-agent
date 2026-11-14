@@ -1,0 +1,179 @@
+#!/usr/bin/expect -f
+# Drives ONE interactive Claude Code session for one game run.
+#
+# Computer use only works in interactive Claude Code (not `claude -p`), so we
+# run the real TUI inside a pseudo-terminal and watch it:
+#   * auto-answers the folder-trust prompt (only the COC_HOME folder is ever used)
+#   * auto-answers the per-session "Allow for this session" app-access prompt
+#     (a PreToolUse hook guarantees that prompt can only be for iPhone Mirroring)
+#   * finishes as soon as the agent writes state/run_result.json (via `coc finish`)
+#   * nudges once if the session goes quiet, then gives up; hard time cap
+#
+# usage: run_session.exp <claude> [args...] <prompt>
+# env:   COC_RESULT_FILE COC_TRANSCRIPT COC_EVENTS COC_MAX_SECONDS COC_STALL_SECONDS
+#        COC_AUTO_APPROVE (1/0) COC_APPROVE_KEYS COC_ATTACH (1 = mirror the TUI to this terminal)
+#
+# exit:  0 result written | 10 hard timeout | 11 stalled | 12 claude exited without result | 2 usage
+
+if {[llength $argv] < 2} { puts stderr "usage: run_session.exp <claude> \[args...\] <prompt>"; exit 2 }
+
+set result_file $env(COC_RESULT_FILE)
+set transcript  $env(COC_TRANSCRIPT)
+set events      $env(COC_EVENTS)
+set max_secs    $env(COC_MAX_SECONDS)
+set stall_secs  $env(COC_STALL_SECONDS)
+set auto_approve [expr {[info exists env(COC_AUTO_APPROVE)] ? $env(COC_AUTO_APPROVE) : 1}]
+# comma-separated key names: the access prompt's default option is "Deny", "Allow for this session" is one below
+set approve_keys [expr {[info exists env(COC_APPROVE_KEYS)] && $env(COC_APPROVE_KEYS) ne "" ? $env(COC_APPROVE_KEYS) : "DOWN,ENTER"}]
+set attach [expr {[info exists env(COC_ATTACH)] ? $env(COC_ATTACH) : 0}]
+
+log_user $attach
+log_file -a -noappend $transcript
+match_max 20000
+set stty_init "rows 50 cols 160"
+
+proc event {msg} {
+    global events
+    set f [open $events a]
+    puts $f "[clock format [clock seconds] -format {%Y-%m-%dT%H:%M:%S}] $msg"
+    close $f
+}
+
+# Strip terminal escapes + all whitespace so "Allow for this session" matches
+# no matter how the TUI positions the words.
+proc flatten {s} {
+    regsub -all {\x1b\[[0-9;?<>=]*[ -/]*[@-~]} $s "" s
+    regsub -all {\x1b\][^\x07\x1b]*(\x07|\x1b\\)} $s "" s
+    regsub -all {\x1b.} $s "" s
+    regsub -all {\s+} $s "" s
+    return [string tolower $s]
+}
+
+proc send_keys {spec} {
+    foreach k [split $spec ","] {
+        switch -- [string toupper [string trim $k]] {
+            DOWN  { send -- "\033\[B" }
+            UP    { send -- "\033\[A" }
+            ENTER { send -- "\r" }
+            TAB   { send -- "\t" }
+            SPACE { send -- " " }
+            ESC   { send -- "\033" }
+            default { send -- $k }
+        }
+        after 400
+    }
+}
+
+proc shutdown {how} {
+    global spawn_id
+    if {$how eq "graceful"} {
+        catch { send -- "/exit\r" }
+        set timeout 30
+        expect { eof { return } timeout { } }
+    } else {
+        catch { send -- "\033" }
+        after 500
+        catch { send -- "\033" }
+        after 1000
+        catch { send -- "/exit\r" }
+        set timeout 20
+        expect { eof { return } timeout { } }
+    }
+    catch { exec kill [exp_pid] }
+    after 2000
+    catch { exec kill -9 [exp_pid] }
+}
+
+set start [clock seconds]
+set last_output $start
+set recent ""
+set trusted 0
+set approvals 0
+set last_approve 0
+set nudged 0
+set outcome ""
+
+event "spawn: [lindex $argv 0]"
+spawn -noecho {*}$argv
+
+while {$outcome eq ""} {
+    set timeout 5
+    expect {
+        -re {.+} {
+            set last_output [clock seconds]
+            append recent $expect_out(0,string)
+            if {[string length $recent] > 16000} { set recent [string range $recent end-16000 end] }
+        }
+        eof { set outcome "eof" }
+        timeout { }
+    }
+    set now [clock seconds]
+    if {[file exists $result_file]} {
+        # The agent may still be finishing its last tool calls/message. Wait until the TUI is
+        # quiet (the spinner redraws constantly while it works) before closing, max 3 min.
+        event "result file written - waiting for the session to go idle"
+        set done_at [clock seconds]
+        set quiet_since [clock seconds]
+        while {[clock seconds] - $done_at < 180 && [clock seconds] - $quiet_since < 10} {
+            set timeout 2
+            expect {
+                -re {.+} { set quiet_since [clock seconds] }
+                eof { break }
+                timeout { }
+            }
+        }
+        set outcome "done"
+        break
+    }
+    if {$outcome ne ""} { break }
+    if {$now - $start > $max_secs} { set outcome "timeout"; break }
+
+    set flat [flatten $recent]
+
+    if {!$trusted && ([string match {*doyoutrustthefiles*} $flat] || [string match {*trustthisfolder*} $flat])} {
+        event "answering folder-trust prompt"
+        send -- "\r"
+        set trusted 1
+        set recent ""
+        continue
+    }
+
+    # The access dialog: "Computer Use wants to control these apps ... ◉ iPhone Mirroring ... ❯ Deny ... Allow for this session"
+    if {$auto_approve && [string match {*allowforthissession*} $flat] && [string match {*wantstocontrol*} $flat]
+        && [string match {*iphonemirroring*} $flat] && ($now - $last_approve) > 6} {
+        if {$approvals >= 3} {
+            event "access prompt appeared again after 3 approvals - giving up"
+            set outcome "stalled"
+            break
+        }
+        event "answering app-access prompt (guard hook restricts it to allowed_apps)"
+        after 700
+        send_keys $approve_keys
+        incr approvals
+        set last_approve $now
+        set recent ""
+        continue
+    }
+
+    if {($now - $last_output) > $stall_secs} {
+        if {!$nudged} {
+            event "session quiet for ${stall_secs}s - nudging"
+            send -- "You went quiet. Continue the run protocol from where you are. If the run is over or you are stuck, update memory and run the coc finish command now."
+            after 500
+            send -- "\r"
+            set nudged 1
+            set last_output $now
+        } else {
+            set outcome "stalled"
+            break
+        }
+    }
+}
+
+event "outcome: $outcome after [expr {[clock seconds] - $start}]s"
+switch -- $outcome {
+    done    { shutdown graceful; exit 0 }
+    timeout { shutdown hard; exit 10 }
+    stalled { shutdown hard; exit 11 }
+    default { if {[file exists $result_file]} { exit 0 } ; exit 12 }
+}

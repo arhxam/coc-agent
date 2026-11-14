@@ -1,0 +1,26 @@
+<html><head><link rel=stylesheet href=common.css><style>
+html,body{height:720px}
+h2{position:absolute;left:64px;top:48px;font-size:44px;font-weight:800;letter-spacing:-1px}
+.s{position:absolute;left:64px;top:110px;font-size:21px;color:#9aa7b8}
+.box{position:absolute;top:190px;width:262px;height:230px;border-radius:14px;border:1px solid #2a3446;background:#121926;padding:20px}
+.box h3{font-size:20px;margin-bottom:12px}
+.box div{font-size:16px;line-height:1.6;color:#9aa7b8}
+.arr{position:absolute;top:290px;font-size:30px;color:#4a5668}
+.mem{position:absolute;left:64px;right:64px;top:470px;height:150px;border:1px dashed #2f6b4c;border-radius:14px;padding:18px 22px;background:rgba(107,224,160,.04)}
+.mem h3{font-size:18px;color:#6be0a0;margin-bottom:12px}
+.chips span{display:inline-block;margin:0 8px 10px 0;padding:6px 12px;border-radius:8px;background:#151d2b;border:1px solid #2a3446;font-size:15px;color:#c9d1d9}
+.chips span.k{border-color:#6a4fb3;color:#d9c4ff}
+</style></head><body>
+<h2>How it works</h2>
+<div class=s>A dumb, reliable scheduler decides <i>whether</i> a run may start. Claude decides everything else.</div>
+<div class=box style="left:64px;border-color:#5a4a1f"><h3 class=y>⏰ scheduler.py</h3><div>Is the Mac idle? Lid open?<br>Home Wi‑Fi? iPhone nearby?<br>Night window → caffeinate<br>Applies the agent's chosen<br>next wake‑up time</div></div>
+<div class=arr style="left:334px">→</div>
+<div class=box style="left:366px"><h3>⌨️ run_session.exp</h3><div>Spawns a real interactive<br>Claude Code session<br>(computer use needs a TTY)<br>Answers the access prompt<br>Kills stalls & overruns</div></div>
+<div class=arr style="left:636px">→</div>
+<div class=box style="left:668px;border-color:#6a4fb3"><h3 class=p>🧠 Claude agent</h3><div>Reads its memory + strategy<br>Screenshots, clicks, zooms<br>Upgrades, attacks, walls<br>Logs results, tunes knobs<br>Picks its next wake‑up</div></div>
+<div class=arr style="left:938px">→</div>
+<div class=box style="left:970px;width:246px;border-color:#3b5a9a"><h3 class=b>📱 iPhone Mirroring</h3><div>macOS app that shows<br>your iPhone on the Mac.<br>A hook blocks every<br>other app.</div></div>
+<div class=mem><h3>~/.coc-agent/memory: the agent's brain, persisted between runs</h3><div class=chips>
+<span class=k>strategy.md (rewritten by the agent)</span><span>base.json · live state</span><span>upgrade_priorities.md</span><span>attack_playbook.md</span><span>walls.md</span><span>ui_map.md</span><span>lessons.md</span><span class=k>tuning.json (self-tuned knobs)</span><span>logs/*.jsonl → coc stats</span></div></div>
+<div class=foot style="bottom:30px"><span class=mono>github.com/arhxam/coc-agent</span><span>no cloud server · everything runs on your Mac</span></div>
+</body></html>

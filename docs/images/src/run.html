@@ -1,0 +1,24 @@
+<html><head><link rel=stylesheet href=common.css><style>
+html,body{height:720px}
+h2{position:absolute;left:64px;top:48px;font-size:44px;font-weight:800;letter-spacing:-1px}
+.s{position:absolute;left:64px;top:110px;font-size:21px;color:#9aa7b8}
+.win{position:absolute;left:64px;right:64px;top:168px;height:500px}
+pre{font-family:"SF Mono",Menlo,monospace;font-size:16px;line-height:1.6;padding:18px 24px;color:#c9d1d9;white-space:pre-wrap}
+</style></head><body>
+<h2>Its first real run</h2>
+<div class=s>12 minutes, hands off. Status and logs from that run (condensed); the quote is the agent's own summary.</div>
+<div class=win><div class=bar><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>~ cocctl status &amp;&amp; cocctl logs</span></div>
+<pre><span class=g>✓</span> scheduler running (background)
+next run: <b>Fri 13 Nov 19:53</b>  <span class=d>(chosen by the agent)</span>
+base: TH13  builders busy <span class=g>5/5</span>
+   • Grand Warden upgrade  → 01:19      • Archer Queen upgrade   → 13:19
+   • Laboratory upgrade    → 03:08      • Barbarian King upgrade → 13:19
+   • Blacksmith → L6       → 16:46  <span class=y>← started this run (50%-off event)</span>
+
+<span class=p>run 20261113-134154</span>  status=<span class=g>ok</span>  12.0 min
+  attack 1   30%      <span class=g>+346K gold  +793K elixir</span>   <span class=d>heroes all upgrading</span>
+  attack 2   ★ 67%    <span class=g>+391K gold  +345K elixir</span>   <span class=d>3 zaps per air defense</span>
+  <span class=d>"Strategy rewritten: elixir-first farming, 3 zaps per air defense experiment.</span>
+  <span class=d> Elixir 1.9M of ~14M, so farm at any idle moment; night runs at 01:21 and 03:10</span>
+  <span class=d> start the next builder jobs."</span></pre></div>
+</body></html>

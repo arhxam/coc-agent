@@ -1,0 +1,456 @@
+#!/usr/bin/env bash
+# cocctl - control the coc-agent (autonomous Clash of Clans via Claude Code + iPhone Mirroring)
+set -euo pipefail
+
+REPO="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")/.." && pwd)"
+export COC_HOME="${COC_HOME:-$HOME/.coc-agent}"
+APP="$COC_HOME/app"
+STATE="$COC_HOME/state"
+LOGS="$COC_HOME/logs"
+PIDFILE="$STATE/daemon.pid"
+LABEL="com.cocagent.scheduler"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+PY="$(command -v python3 || echo /usr/bin/python3)"
+
+c_bold=$'\e[1m'; c_dim=$'\e[2m'; c_grn=$'\e[32m'; c_red=$'\e[31m'; c_yel=$'\e[33m'; c_off=$'\e[0m'
+say()  { printf '%s\n' "$*"; }
+ok()   { printf '%s✓%s %s\n' "$c_grn" "$c_off" "$*"; }
+warn() { printf '%s!%s %s\n' "$c_yel" "$c_off" "$*"; }
+die()  { printf '%s✗%s %s\n' "$c_red" "$c_off" "$*" >&2; exit 1; }
+
+need_install() { [[ -f "$APP/scheduler.py" ]] || die "not installed yet - run: $REPO/bin/cocctl install"; }
+
+daemon_pid() {
+  local pid
+  pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then echo "$pid"; return 0; fi
+  pid="$(launchctl print "gui/$(id -u)/$LABEL" 2>/dev/null | awk '/^\tpid = /{print $3; exit}')"
+  [[ -n "$pid" ]] && { echo "$pid"; return 0; }
+  return 1
+}
+launchd_loaded() { launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; }
+
+# ---------------------------------------------------------------- install
+cmd_install() {
+  [[ -f "$REPO/docs/overview.html" ]] || die "run install from the source checkout (e.g. <repo>/bin/cocctl install)"
+  say "${c_bold}Installing coc-agent into $COC_HOME${c_off}"
+  command -v expect >/dev/null || die "expect not found (it ships with macOS at /usr/bin/expect)"
+  command -v claude >/dev/null || [[ -x "$HOME/.local/bin/claude" ]] || die "claude CLI not found"
+  mkdir -p "$COC_HOME"/{app,memory,state,logs/sessions,bin,.claude}
+
+  rsync -a --delete --exclude '__pycache__' "$REPO/app/" "$APP/"
+  cp "$REPO/app/CLAUDE.md" "$COC_HOME/CLAUDE.md"
+  cp "$REPO/docs/overview.html" "$COC_HOME/overview.html"
+  chmod +x "$APP/run_session.exp" "$APP/scheduler.py" "$APP/tools/coc.py" "$APP/hooks/guard_apps.py"
+  ok "app files copied"
+
+  if [[ "${1:-}" == "--reseed-memory" && -d "$COC_HOME/memory" ]]; then
+    local bk="$COC_HOME/memory.bak.$(date +%Y%m%d-%H%M%S)"
+    mv "$COC_HOME/memory" "$bk"; mkdir -p "$COC_HOME/memory"; warn "old memory moved to $bk"
+  fi
+  local seeded=0
+  for f in "$APP"/memory_seed/*; do
+    local dst="$COC_HOME/memory/$(basename "$f")"
+    [[ -e "$dst" ]] || { cp "$f" "$dst"; seeded=$((seeded+1)); }
+  done
+  ok "memory: $seeded new file(s) seeded, existing memory kept"
+
+  if [[ ! -f "$COC_HOME/config.json" ]]; then
+    cp "$APP/config.default.json" "$COC_HOME/config.json"; ok "config.json created (edit it to tune behaviour)"
+  else
+    ok "config.json kept (new defaults still apply via app/config.default.json)"
+  fi
+
+  detect_presence
+  cat > "$COC_HOME/bin/coc" <<EOF
+#!/usr/bin/env bash
+export COC_HOME="\${COC_HOME:-$COC_HOME}"
+exec "$PY" "$APP/tools/coc.py" "\$@"
+EOF
+  chmod +x "$COC_HOME/bin/coc"
+
+  "$PY" - "$COC_HOME" "$PY" <<'PYEOF'
+import json, sys, os, shutil, time
+home, py = sys.argv[1], sys.argv[2]
+coc = f"{home}/bin/coc"
+settings = {
+  "permissions": {
+    "allow": [
+      "mcp__computer-use",
+      "Read", "Glob", "Grep",
+      "Edit(./memory/**)", "Write(./memory/**)",
+      f"Bash(./bin/coc *)", f"Bash(./bin/coc:*)", f"Bash({coc} *)", f"Bash({coc}:*)",
+      "Bash(date)", "Bash(date *)", "Bash(tail *)", "Bash(cat *)"
+    ],
+    "deny": ["WebFetch", "WebSearch"]
+  },
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "mcp__computer-use__request_access|mcp__computer-use__open_application",
+      "hooks": [{"type": "command", "command": f"COC_HOME='{home}' '{py}' '{home}/app/hooks/guard_apps.py'"}]
+    }]
+  }
+}
+os.makedirs(f"{home}/.claude", exist_ok=True)
+json.dump(settings, open(f"{home}/.claude/settings.json", "w"), indent=2)
+
+# Trust the folder and enable the built-in computer-use MCP server for it.
+cfg_path = os.path.expanduser("~/.claude.json")
+if os.path.exists(cfg_path):
+    shutil.copy(cfg_path, cfg_path + ".coc-agent.bak")
+    d = json.load(open(cfg_path))
+    p = d.setdefault("projects", {}).setdefault(home, {})
+    p["hasTrustDialogAccepted"] = True
+    p["hasCompletedProjectOnboarding"] = True
+    servers = p.setdefault("enabledMcpServers", [])
+    if "computer-use" not in servers:
+        servers.append("computer-use")
+    tmp = cfg_path + f".tmp{os.getpid()}"
+    json.dump(d, open(tmp, "w"), indent=2)
+    os.replace(tmp, cfg_path)
+    print("ok")
+PYEOF
+  ok "Claude Code: folder trusted, computer-use enabled, permissions + app-guard hook written"
+
+  cp "$REPO/bin/cocctl" "$COC_HOME/bin/cocctl"; chmod +x "$COC_HOME/bin/cocctl"
+  mkdir -p "$HOME/.local/bin" && ln -sf "$COC_HOME/bin/cocctl" "$HOME/.local/bin/cocctl"
+  ok "cocctl installed at $COC_HOME/bin/cocctl (linked into ~/.local/bin)"
+  ok "done. Next:  cocctl doctor   then   cocctl run-now --attach"
+  if launchd_loaded; then write_plist; warn "autostart is on; restart to pick up new code: cocctl restart"; fi
+}
+
+# Fill presence settings (home router MAC + iPhone Bluetooth address) if they are empty.
+detect_presence() {
+  "$PY" - "$COC_HOME" <<'PYEOF2'
+import json, os, re, subprocess, sys
+home = sys.argv[1]
+p = os.path.join(home, "config.json")
+cfg = json.load(open(p))
+pres = cfg.setdefault("presence", {})
+changed = []
+if not pres.get("home_gateway_macs"):
+    out = subprocess.run(["route", "-n", "get", "default"], capture_output=True, text=True).stdout
+    m = re.search(r"gateway:\s*([\d.]+)", out)
+    if m:
+        arp = subprocess.run(["arp", "-n", m.group(1)], capture_output=True, text=True).stdout
+        mm = re.search(r" at ([0-9a-fA-F:]+) ", arp)
+        if mm:
+            mac = ":".join(x.zfill(2) for x in mm.group(1).lower().split(":"))
+            pres["home_gateway_macs"] = [mac]; changed.append(f"home network = router {mac} (the network you're on now)")
+if not pres.get("iphone_bt_address"):
+    try:
+        d = json.loads(subprocess.run(["system_profiler", "SPBluetoothDataType", "-json"], capture_output=True, text=True, timeout=30).stdout)["SPBluetoothDataType"][0]
+        cands = []
+        for sec, devs in d.items():
+            if isinstance(devs, list):
+                for dev in devs:
+                    for name, info in dev.items():
+                        if "iphone" in name.lower():
+                            cands.append((("device_rssi" in info) or sec == "device_connected", name, info.get("device_address")))
+        cands.sort(reverse=True)
+        if cands and cands[0][2]:
+            pres["iphone_bt_address"] = cands[0][2]; changed.append(f"iPhone = '{cands[0][1]}' ({cands[0][2]})")
+    except Exception as e:
+        print("  (bluetooth detection skipped:", e, ")")
+if changed:
+    json.dump(cfg, open(p, "w"), indent=2)
+for c in changed:
+    print("  presence:", c)
+PYEOF2
+}
+
+cmd_home_here() {
+  need_install
+  "$PY" - "$COC_HOME" <<'PYEOF2'
+import json, os, sys
+sys.path.insert(0, os.path.join(sys.argv[1], "app"))
+import scheduler
+mac = scheduler.gateway_mac()
+p = os.path.join(sys.argv[1], "config.json"); cfg = json.load(open(p))
+macs = cfg.setdefault("presence", {}).setdefault("home_gateway_macs", [])
+if mac and mac not in macs:
+    macs.append(mac); json.dump(cfg, open(p, "w"), indent=2); print("added home network router", mac)
+else:
+    print("already known" if mac else "no router found", mac or "")
+PYEOF2
+}
+
+# ---------------------------------------------------------------- launchd
+write_plist() {
+  mkdir -p "$(dirname "$PLIST")"
+  cat > "$PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>$LABEL</string>
+  <key>ProgramArguments</key><array><string>$PY</string><string>$APP/scheduler.py</string><string>daemon</string></array>
+  <key>EnvironmentVariables</key><dict>
+    <key>COC_HOME</key><string>$COC_HOME</string>
+    <key>PATH</key><string>$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key><string>$HOME</string>
+  </dict>
+  <key>WorkingDirectory</key><string>$COC_HOME</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>StandardOutPath</key><string>$LOGS/daemon.out</string>
+  <key>StandardErrorPath</key><string>$LOGS/daemon.out</string>
+</dict></plist>
+EOF
+}
+
+cmd_autostart() {
+  need_install
+  case "${1:-}" in
+    on)
+      cmd_stop >/dev/null 2>&1 || true
+      write_plist
+      launchctl bootstrap "gui/$(id -u)" "$PLIST"
+      ok "autostart on (launchd agent $LABEL) - starts at login, restarts if it crashes"
+      warn "If the first run reports a Screen Recording/Accessibility error, grant it to: $PY"
+      ;;
+    off)
+      launchd_loaded && launchctl bootout "gui/$(id -u)/$LABEL" || true
+      rm -f "$PLIST"; ok "autostart off" ;;
+    *) die "usage: cocctl autostart on|off" ;;
+  esac
+}
+
+# ---------------------------------------------------------------- start / stop
+cmd_start() {
+  need_install
+  if pid="$(daemon_pid)"; then ok "already running (pid $pid)"; return; fi
+  rm -f "$STATE/PAUSED"
+  if [[ -f "$PLIST" ]]; then
+    launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl kickstart "gui/$(id -u)/$LABEL"
+    sleep 1; ok "started via launchd (pid $(daemon_pid || echo '?'))"
+  else
+    mkdir -p "$STATE" "$LOGS"
+    # new session (setsid) so it survives the terminal / parent process exiting
+    nohup "$PY" -c 'import os, sys; os.setsid(); os.execv(sys.argv[1], sys.argv[1:])' \
+      "$PY" "$APP/scheduler.py" daemon >>"$LOGS/daemon.out" 2>&1 </dev/null &
+    echo $! >"$PIDFILE"; disown || true
+    sleep 1
+    kill -0 "$(cat "$PIDFILE")" 2>/dev/null || die "scheduler exited immediately - see $LOGS/daemon.out"
+    ok "started in background (pid $(cat "$PIDFILE")). It keeps running after you close this terminal."
+  fi
+  say "${c_dim}status: cocctl status   logs: cocctl logs -f   stop: cocctl stop${c_off}"
+}
+
+cmd_stop() {
+  local stopped=0
+  if launchd_loaded; then launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true; stopped=1; fi
+  local pid; pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    kill -TERM "$pid"; for _ in {1..30}; do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid"
+    stopped=1
+  fi
+  rm -f "$PIDFILE" "$STATE/run.lock"
+  [[ $stopped == 1 ]] && ok "stopped (any in-flight game run was ended)" || ok "was not running"
+  [[ -f "$PLIST" ]] && say "${c_dim}autostart is still on - it will start again at next login (cocctl autostart off to disable)${c_off}"
+  return 0
+}
+
+cmd_pause()  { need_install; touch "$STATE/PAUSED"; ok "paused - no new runs start (a run in progress finishes). cocctl resume to continue"; }
+cmd_resume() { need_install; rm -f "$STATE/PAUSED"; ok "resumed"; }
+
+cmd_run_now() {
+  need_install
+  if [[ "${1:-}" == "--attach" ]]; then
+    say "Running one session in the foreground; you'll see Claude's terminal UI. Hands off the mouse."
+    "$PY" "$APP/scheduler.py" run-once --attach
+  elif daemon_pid >/dev/null; then
+    touch "$STATE/RUN_NOW"; ok "requested - the scheduler starts a run within ~20s (skips the 'you are using the Mac' check)"
+  else
+    "$PY" "$APP/scheduler.py" run-once
+  fi
+}
+
+cmd_next() {
+  need_install
+  [[ -n "${1:-}" ]] || die 'usage: cocctl next "+45m" | "2026-11-13T09:30"'
+  "$PY" - "$1" <<'PYEOF'
+import sys, os
+sys.path.insert(0, os.path.join(os.environ["COC_HOME"], "app"))
+sys.path.insert(0, os.path.join(os.environ["COC_HOME"], "app", "tools"))
+import scheduler, coc
+scheduler.set_schedule(coc.parse_when(sys.argv[1]), "set manually with cocctl next", "manual")
+PYEOF
+}
+
+# ---------------------------------------------------------------- status / logs
+cmd_status() {
+  need_install
+  if pid="$(daemon_pid)"; then
+    local mode="background"; launchd_loaded && mode="launchd autostart"
+    ok "scheduler running (pid $pid, $mode)"
+  else
+    warn "scheduler NOT running - cocctl start"
+  fi
+  [[ -f "$STATE/PAUSED" ]] && warn "PAUSED (cocctl resume)"
+  "$PY" - <<'PYEOF'
+import json, os, datetime as dt
+h = os.environ["COC_HOME"]
+def j(p):
+    try: return json.load(open(os.path.join(h, p)))
+    except Exception: return None
+now = dt.datetime.now().astimezone()
+s = j("state/schedule.json") or {}
+cur = j("state/current_run.json")
+if cur:
+    print(f"\033[1m▶ run in progress\033[0m {cur['run_id']} since {cur['started_at'][11:16]}")
+if s.get("next_wake_at"):
+    t = dt.datetime.fromisoformat(s["next_wake_at"])
+    mins = int((t - now).total_seconds() // 60)
+    when = f"in {mins//60}h {mins%60}m" if mins >= 0 else "due now"
+    print(f"next run: \033[1m{t.strftime('%a %d %b %H:%M')}\033[0m ({when})  [{s.get('source')}] {s.get('reason','')}")
+    if s.get("consecutive_failures"): print(f"consecutive failures: {s['consecutive_failures']}")
+    if s.get("opportunistic_after"):
+        print(f"early run allowed after {s['opportunistic_after'][11:16]} if you're idle at home: {s.get('opportunistic_why','')}")
+hb = j("state/scheduler.json") or {}
+try:
+    pres = [json.loads(l) for l in open(os.path.join(h, "logs/presence.jsonl"))][-1]
+    print(f"presence ({pres['ts'][11:16]}): home={pres.get('at_home')} iphone_nearby={pres.get('iphone_nearby')} "
+          f"mac_idle={pres.get('mac_idle_s')}s locked={pres.get('screen_locked')} night={pres.get('night')}")
+except Exception:
+    pass
+b = j("memory/base.json") or {}
+busy = (b.get("builders") or {}).get("busy") or []
+print(f"base (memory, updated {str(b.get('updated_at'))[:16]}): TH{b.get('town_hall')}  builders busy {len(busy)}/{(b.get('builders') or {}).get('total','?')}")
+for x in busy:
+    print(f"   • {x.get('target')} → {str(x.get('finishes_at'))[5:16]}")
+lab = (b.get("lab") or {}).get("busy")
+if lab: print(f"   • lab: {lab.get('target')} → {str(lab.get('finishes_at'))[5:16]}")
+r = b.get("resources") or {}
+if any(r.values()): print(f"   gold {r.get('gold')}  elixir {r.get('elixir')}  dark {r.get('dark_elixir')}  gems {r.get('gems')}")
+print("recent runs:")
+try:
+    lines = [json.loads(l) for l in open(os.path.join(h, "logs/runs.jsonl")) if l.strip()][-6:]
+except FileNotFoundError:
+    lines = []
+for r in lines:
+    if r.get("status") == "deferred":
+        print(f"   {r['deferred_at'][5:16]}  deferred   {r.get('reason','')}")
+    else:
+        print(f"   {r['started_at'][5:16]}  {r.get('status','?'):<12} {r.get('minutes','?')}m  {r.get('summary','')[:90]}")
+if not lines: print("   (none yet)")
+PYEOF
+}
+
+cmd_logs() {
+  need_install
+  if [[ "${1:-}" == "-f" ]]; then tail -n 40 -f "$LOGS/scheduler.log"; else tail -n "${1:-40}" "$LOGS/scheduler.log" 2>/dev/null || say "(no logs yet)"; fi
+}
+
+cmd_transcript() {
+  need_install
+  local f
+  if [[ -n "${1:-}" ]]; then f="$LOGS/sessions/$1.tty.log"; else f="$(ls -t "$LOGS"/sessions/*.tty.log 2>/dev/null | head -1)"; fi
+  [[ -f "$f" ]] || die "no session transcript found"
+  say "${c_dim}$f${c_off}"
+  cat "${f%.tty.log}.events.log" 2>/dev/null || true
+  "$PY" - "$f" <<'PYEOF'
+import re, sys
+s = open(sys.argv[1], errors="ignore").read()
+s = re.sub(r"\x1b\[(\d*)C", lambda m: " " * int(m.group(1) or 1), s)
+s = re.sub(r"\x1b\[[0-9;?<>=]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b.", "", s)
+out, seen = [], set()
+for line in s.replace("\r", "\n").split("\n"):
+    l = line.rstrip()
+    if len(l.strip()) > 3 and l not in seen and not re.fullmatch(r"\s*[·✢✳✶✻✽*]?\s*[\w…]*\s*", l):
+        seen.add(l); out.append(l)
+print("\n".join(out[-200:]))
+PYEOF
+}
+
+cmd_doctor() {
+  say "${c_bold}coc-agent doctor${c_off}"
+  [[ -f "$APP/scheduler.py" ]] && ok "installed at $COC_HOME" || warn "not installed (cocctl install)"
+  command -v expect >/dev/null && ok "expect: $(command -v expect)" || warn "expect missing"
+  local cb; cb="$(command -v claude || echo "$HOME/.local/bin/claude")"
+  [[ -x "$cb" ]] && ok "claude: $cb ($("$cb" --version 2>/dev/null | head -1))" || warn "claude CLI not found"
+  ok "python: $PY ($("$PY" --version 2>&1))"
+  "$PY" - <<'PYEOF'
+import json, os
+h = os.environ["COC_HOME"]
+try:
+    d = json.load(open(os.path.expanduser("~/.claude.json")))
+    p = d.get("projects", {}).get(h, {})
+    print(("\033[32m✓\033[0m" if "computer-use" in p.get("enabledMcpServers", []) else "\033[33m!\033[0m"),
+          "computer-use enabled for", h)
+    print(("\033[32m✓\033[0m" if p.get("hasTrustDialogAccepted") else "\033[33m!\033[0m"), "folder trusted")
+except Exception as e:
+    print("! could not read ~/.claude.json:", e)
+try:
+    json.load(open(os.path.join(h, "config.json"))); print("\033[32m✓\033[0m config.json valid")
+except Exception as e:
+    print("\033[31m✗\033[0m config.json:", e)
+lock = os.path.expanduser("~/.claude/computer-use.lock")
+try:
+    l = json.load(open(lock))
+    try:
+        os.kill(int(l["pid"]), 0); print(f"\033[33m!\033[0m computer use is held by Claude session pid {l['pid']} - runs will wait until that session exits (/exit it)")
+    except ProcessLookupError:
+        print("\033[32m✓\033[0m computer-use lock is free (stale file)")
+except FileNotFoundError:
+    print("\033[32m✓\033[0m computer-use lock is free")
+PYEOF
+  [[ -f "$APP/scheduler.py" ]] && { say "preflight right now:"; "$PY" "$APP/scheduler.py" preflight; }
+  say "${c_dim}One-time macOS setup: iPhone Mirroring paired and working; Mac stays unlocked/awake while runs are due;"
+  say "Screen Recording + Accessibility granted to the app that launches the scheduler (your terminal, or python3 for autostart).${c_off}"
+}
+
+cmd_uninstall() {
+  cmd_autostart off >/dev/null 2>&1 || true
+  cmd_stop >/dev/null 2>&1 || true
+  ok "stopped and autostart removed. Data kept in $COC_HOME (delete it yourself if you want a clean slate)."
+}
+
+usage() {
+  cat <<EOF
+${c_bold}cocctl${c_off} - autonomous Clash of Clans agent (Claude Code + iPhone Mirroring)
+
+  install [--reseed-memory]  copy app to $COC_HOME, seed memory, detect home/iPhone, configure Claude Code
+  doctor                  check everything needed for unattended runs
+  start | stop | restart  background scheduler (survives closing the terminal)
+  autostart on|off        run via launchd: starts at login, auto-restarts
+  status                  scheduler state, next run + why, base timers, recent runs
+  run-now [--attach]      trigger a run now (--attach = watch it in this terminal)
+  pause | resume          stop/allow new runs without killing the scheduler
+  next "+45m"|ISO         override the next wake-up time
+  presence                what the Mac senses now (home network, iPhone nearby, idle, night)
+  home-here               mark the current network as home too
+  stats [--days N]        what the agent has achieved (attacks, loot, walls, idle builders)
+  availability            learned hours when runs can actually happen
+  strategy                print the agent's current living strategy
+  logs [-f|N]             scheduler log
+  transcript [run_id]     cleaned Claude session output for the last (or given) run
+  overview                open the HTML overview
+  uninstall               stop + remove autostart (keeps memory/logs)
+EOF
+}
+
+case "${1:-}" in
+  install)    shift; cmd_install "$@" ;;
+  doctor)     cmd_doctor ;;
+  start)      cmd_start ;;
+  stop)       cmd_stop ;;
+  restart)    cmd_stop; cmd_start ;;
+  autostart)  shift; cmd_autostart "$@" ;;
+  status)     cmd_status ;;
+  run-now)    shift; cmd_run_now "$@" ;;
+  presence)   need_install; "$PY" "$APP/scheduler.py" presence ;;
+  home-here)  cmd_home_here ;;
+  stats)      shift; need_install; "$COC_HOME/bin/coc" stats "$@" ;;
+  availability) shift; need_install; "$COC_HOME/bin/coc" availability "$@" ;;
+  strategy)   need_install; cat "$COC_HOME/memory/strategy.md" ;;
+  pause)      cmd_pause ;;
+  resume)     cmd_resume ;;
+  next)       shift; cmd_next "$@" ;;
+  logs)       shift; cmd_logs "$@" ;;
+  transcript) shift; cmd_transcript "$@" ;;
+  overview)   open "$COC_HOME/overview.html" 2>/dev/null || open "$REPO/docs/overview.html" ;;
+  uninstall)  cmd_uninstall ;;
+  *)          usage ;;
+esac

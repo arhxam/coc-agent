@@ -1,0 +1,26 @@
+<html><head><link rel=stylesheet href=common.css><style>
+html,body{height:720px}
+h2{position:absolute;left:64px;top:48px;font-size:44px;font-weight:800;letter-spacing:-1px}
+.s{position:absolute;left:64px;top:110px;font-size:21px;color:#9aa7b8;width:1150px}
+.win{position:absolute;left:64px;right:64px;top:168px;height:470px}
+pre{font-family:"SF Mono",Menlo,monospace;font-size:16.5px;line-height:1.62;padding:18px 24px;color:#c9d1d9;white-space:pre-wrap}
+h{color:#ffc94d;font-weight:700}
+</style></head><body>
+<h2>It rewrites its own strategy</h2>
+<div class=s>Excerpts from <span class=mono>memory/strategy.md</span>, written by the agent itself after 3 days of its own runs and logs.</div>
+<div class=win><div class=bar><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>memory/strategy.md</span></div>
+<pre><h>## North-star metrics</h>
+1. Builders and lab never idle. Loot has blocked 0 runs so far. <span class=y>The real problem is
+   access</span>: 78 deferrals in 3 days: lid closed 43, screen locked 19, other Claude session 7.
+
+<h>## Economy</h>
+- <span class=g>Elixir is the bottleneck.</span> Gold has few builder sinks, so gold surplus goes to walls.
+- Stagger builder finishes: with so few runnable hours, prefer <span class=g>long jobs (1 d+)</span> over 6 h
+  ones, so builders don't all free up in dead hours.
+
+<h>## Timing pattern</h> (from `coc availability`)
+- Runnable hours so far: <span class=b>02:00 (71%), 01:00 (40%)</span>, 14:00 (36%). 03:00-12:00 is 0%.
+
+<h>## Open experiment</h>
+- <span class=p>"3-zaps-per-AD"</span>: 1 data point (67% without heroes). Measure 5 attacks.</pre></div>
+</body></html>

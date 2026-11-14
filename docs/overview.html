@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>coc-agent: system overview</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232c; --line:#2a3340; --text:#e6edf3; --muted:#9aa7b4;
+    --gold:#f4c542; --elixir:#d16ee6; --dark:#7e8cff; --green:#4cc38a; --red:#f0626b; --blue:#58a6ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,Segoe UI,sans-serif}
+  main{max-width:1080px;margin:0 auto;padding:48px 24px 96px}
+  h1{font-size:34px;margin:0 0 6px;letter-spacing:-.02em}
+  h2{font-size:22px;margin:56px 0 14px;padding-top:8px;border-top:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--gold)}
+  p{margin:8px 0}
+  .sub{color:var(--muted);font-size:17px;max-width:780px}
+  code,pre{font:13px/1.55 "SF Mono",ui-monospace,Menlo,monospace}
+  code{background:var(--panel2);padding:1px 6px;border-radius:5px;color:#ffd987}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;margin:10px 0}
+  pre code{background:none;padding:0;color:var(--text)}
+  .c{color:var(--muted)}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card h4{margin:0 0 6px;font-size:15px}
+  .card p,.card li{color:var(--muted);font-size:14px}
+  .card ul{margin:6px 0 0;padding-left:18px}
+  .pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);margin-right:6px}
+  .tag-gold{color:var(--gold);border-color:#5a4a17}.tag-el{color:var(--elixir);border-color:#4d2a57}.tag-dk{color:var(--dark);border-color:#2f356b}.tag-g{color:var(--green);border-color:#1f4d37}.tag-r{color:var(--red);border-color:#5a2529}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  td code{white-space:nowrap}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:12px 0}
+  .step{flex:1 1 150px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;position:relative}
+  .step b{display:block;font-size:12px;color:var(--gold);margin-bottom:2px}
+  .step span{color:var(--muted)}
+  .warn{border-left:3px solid var(--red);background:#1d1416}
+  .note{border-left:3px solid var(--blue)}
+  .ok{border-left:3px solid var(--green)}
+  svg text{font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif}
+  nav{display:flex;flex-wrap:wrap;gap:6px;margin:22px 0 0}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;border:1px solid var(--line);border-radius:99px;padding:4px 11px}
+  nav a:hover{color:var(--text);border-color:var(--muted)}
+  .kbd{font:12px "SF Mono",monospace;background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+</style>
+</head>
+<body>
+<main>
+  <span class="pill tag-gold">local</span><span class="pill tag-el">Claude Code + computer use</span><span class="pill tag-dk">iPhone Mirroring</span>
+  <h1>coc-agent</h1>
+  <p class="sub">A local system that plays Clash of Clans on your iPhone through iPhone Mirroring. It <b>banks loot</b> so a freed builder can start right away, upgrades walls on their own track, does most of its work <b>at night and while you're idle</b>, and <b>rewrites its own strategy</b> as it learns.</p>
+  <nav>
+    <a href="#quick">Quick start</a><a href="#arch">Architecture</a><a href="#run">A single run</a><a href="#timing">Timing</a>
+    <a href="#strategy">Strategy</a><a href="#learning">Learning loop</a><a href="#memory">Memory</a><a href="#safety">Safety rails</a><a href="#cmds">Commands</a><a href="#config">Config</a><a href="#limits">Limits &amp; risks</a>
+  </nav>
+
+  <h2 id="quick">Quick start</h2>
+  <pre><code><span class="c"># 1. install (from the repo checkout) - copies the app to ~/.coc-agent and configures Claude Code</span>
+./bin/cocctl install
+
+<span class="c"># 2. close any other Claude Code session that used computer use (it holds a lock), then check</span>
+cocctl doctor
+
+<span class="c"># 3. watch one supervised run in your terminal (hands off the mouse)</span>
+cocctl run-now --attach
+
+<span class="c"># 4. keep it running in the background                 # stop it any time</span>
+cocctl start                                          cocctl stop
+cocctl status        <span class="c"># next run + why, base timers, recent runs</span>
+cocctl logs -f       <span class="c"># live scheduler log</span>
+
+cocctl presence      <span class="c"># what the Mac senses: home network, iPhone nearby, idle, night</span>
+cocctl strategy      <span class="c"># the agent's current living strategy</span>
+cocctl stats         <span class="c"># loot/attack, walls/day, "builder waited for loot" count</span>
+
+<span class="c"># optional: survive reboots / logins via launchd</span>
+cocctl autostart on                                   cocctl autostart off</code></pre>
+
+  <h2 id="arch">Architecture</h2>
+  <p>Two layers with a strict split. A <b>dumb, reliable scheduler</b> decides only <i>whether a run may start now</i>. A <b>smart Claude Code agent</b> decides everything about the game, including when the next run should happen.</p>
+
+  <svg viewBox="0 0 1030 430" width="100%" role="img" aria-label="architecture diagram">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9aa7b4"/></marker>
+    </defs>
+    <g font-size="13">
+      <rect x="10" y="20" width="230" height="170" rx="12" fill="#161b22" stroke="#2a3340"/>
+      <text x="26" y="46" fill="#f4c542" font-weight="700">scheduler.py (daemon)</text>
+      <text x="26" y="72" fill="#9aa7b4">senses home / iPhone / idle</text>
+      <text x="26" y="94" fill="#9aa7b4">night: caffeinate</text>
+      <text x="26" y="116" fill="#9aa7b4">due or golden moment → run</text>
+      <text x="26" y="138" fill="#9aa7b4">defer +30 min on fail</text>
+      <text x="26" y="160" fill="#9aa7b4">clamps agent's next wake</text>
+      <text x="26" y="180" fill="#9aa7b4">cocctl / launchd</text>
+
+      <rect x="290" y="20" width="220" height="170" rx="12" fill="#161b22" stroke="#2a3340"/>
+      <text x="306" y="46" fill="#f4c542" font-weight="700">run_session.exp</text>
+      <text x="306" y="72" fill="#9aa7b4">spawns interactive</text>
+      <text x="306" y="94" fill="#9aa7b4">claude in a pseudo-TTY</text>
+      <text x="306" y="116" fill="#9aa7b4">answers trust/access</text>
+      <text x="306" y="138" fill="#9aa7b4">nudge on stall, time cap</text>
+      <text x="306" y="160" fill="#9aa7b4">/exit when result lands</text>
+
+      <rect x="560" y="20" width="220" height="170" rx="12" fill="#161b22" stroke="#d16ee6"/>
+      <text x="576" y="46" fill="#d16ee6" font-weight="700">Claude Code agent</text>
+      <text x="576" y="72" fill="#9aa7b4">CLAUDE.md = run protocol</text>
+      <text x="576" y="94" fill="#9aa7b4">computer-use MCP tools</text>
+      <text x="576" y="116" fill="#9aa7b4">./bin/coc helper (time,</text>
+      <text x="576" y="138" fill="#9aa7b4">logs, wake, finish)</text>
+      <text x="576" y="160" fill="#9aa7b4">guard hook: iPhone only</text>
+
+      <rect x="830" y="20" width="190" height="170" rx="12" fill="#161b22" stroke="#7e8cff"/>
+      <text x="846" y="46" fill="#7e8cff" font-weight="700">iPhone Mirroring</text>
+      <text x="846" y="72" fill="#9aa7b4">Mac app → your iPhone</text>
+      <text x="846" y="94" fill="#9aa7b4">Clash of Clans</text>
+      <text x="846" y="116" fill="#9aa7b4">(phone must be locked</text>
+      <text x="846" y="138" fill="#9aa7b4">and nearby)</text>
+
+      <line x1="240" y1="105" x2="288" y2="105" stroke="#9aa7b4" marker-end="url(#a)"/>
+      <line x1="510" y1="105" x2="558" y2="105" stroke="#9aa7b4" marker-end="url(#a)"/>
+      <line x1="780" y1="105" x2="828" y2="105" stroke="#9aa7b4" marker-end="url(#a)"/>
+
+      <rect x="10" y="250" width="1010" height="160" rx="12" fill="#11161d" stroke="#2a3340" stroke-dasharray="4 4"/>
+      <text x="26" y="276" fill="#4cc38a" font-weight="700">~/.coc-agent (persistent state)</text>
+      <rect x="26" y="292" width="300" height="104" rx="9" fill="#161b22" stroke="#2a3340"/>
+      <text x="40" y="316" fill="#e6edf3" font-weight="600">state/</text>
+      <text x="40" y="338" fill="#9aa7b4">schedule.json: next wake + reason</text>
+      <text x="40" y="358" fill="#9aa7b4">run_result.json: agent → scheduler</text>
+      <text x="40" y="378" fill="#9aa7b4">PAUSED, RUN_NOW, run.lock</text>
+      <rect x="346" y="292" width="330" height="104" rx="9" fill="#161b22" stroke="#2a3340"/>
+      <text x="360" y="316" fill="#e6edf3" font-weight="600">memory/ (agent's brain)</text>
+      <text x="360" y="338" fill="#9aa7b4">strategy.md (living) · base.json · walls.md</text>
+      <text x="360" y="358" fill="#9aa7b4">upgrade_priorities · attack_playbook · ui_map</text>
+      <text x="360" y="378" fill="#9aa7b4">lessons.md · tuning.json</text>
+      <rect x="696" y="292" width="308" height="104" rx="9" fill="#161b22" stroke="#2a3340"/>
+      <text x="710" y="316" fill="#e6edf3" font-weight="600">logs/</text>
+      <text x="710" y="338" fill="#9aa7b4">runs · attacks · walls · snapshots</text>
+      <text x="710" y="358" fill="#9aa7b4">presence · tuning · scheduler.log</text>
+      <text x="710" y="378" fill="#9aa7b4">sessions/&lt;run&gt;.tty.log + events</text>
+
+      <line x1="125" y1="190" x2="125" y2="290" stroke="#4cc38a" marker-end="url(#a)"/>
+      <line x1="670" y1="190" x2="560" y2="290" stroke="#d16ee6" marker-end="url(#a)"/>
+      <line x1="690" y1="190" x2="230" y2="290" stroke="#d16ee6" stroke-dasharray="3 3" marker-end="url(#a)"/>
+      <text x="420" y="232" fill="#d16ee6" font-size="12">coc finish → run_result.json</text>
+    </g>
+  </svg>
+
+  <div class="card note" style="margin-top:12px">
+    <h4>Why <code>expect</code> instead of <code>claude -p</code>?</h4>
+    <p>Claude Code's computer use only works in an <b>interactive</b> session. I checked: in <code>claude -p</code> the <code>mcp__computer-use__*</code> tools don't exist. So each run starts the real TUI inside a pseudo-terminal, and <code>run_session.exp</code> plays the human. It answers the folder-trust prompt and the per-session "Allow for this session" app-access prompt. It ends the session the moment the agent writes its result. App access also resets each session, which is why it has to be answered on every run.</p>
+  </div>
+
+  <h2 id="run">A single run</h2>
+  <div class="flow">
+    <div class="step"><b>Orient</b><span>read strategy.md, base, knobs, timers. No screenshots yet</span></div>
+    <div class="step"><b>Connect</b><span>iPhone Mirroring. Phone in use? <code>phone_in_use</code>, +30 min</span></div>
+    <div class="step"><b>Look</b><span>resources vs caps, builders, lab, army; collect; log a snapshot</span></div>
+    <div class="step"><b>Act</b><span>builders → lab → farm the bank back to target → walls from surplus. Order is the agent's call</span></div>
+    <div class="step"><b>Learn</b><span>lessons, ui quirks, tune knobs, log the experiment result</span></div>
+    <div class="step"><b>Plan</b><span>next wake + optional "run early if idle after…"</span></div>
+    <div class="step"><b>Finish</b><span><code>coc finish</code> → session closed</span></div>
+  </div>
+  <p class="c">The first run of each day (after 04:00) also does a <b>daily review</b>. It reads 3 days of stats and the learned availability, then rewrites <code>strategy.md</code>.</p>
+
+  <h2 id="timing">Timing: night-first, idle-aware</h2>
+  <div class="grid g3">
+    <div class="card"><h4>🌙 Night window <span class="pill tag-dk">00:30–08:30</span></h4><p>Prime time: you're asleep, so the Mac and phone are free. The scheduler holds <code>caffeinate</code> during the window so the Mac doesn't sleep or lock. The agent farms run after run until storages hit target, and leaves the longest jobs running before morning.</p></div>
+    <div class="card"><h4>🏠 Presence sensing <span class="pill tag-g">local only</span></h4><p><b>Home</b> = your router's hardware (MAC) address (auto-detected at install, or <code>cocctl home-here</code>). macOS hides the Wi-Fi name, the router address doesn't need it. <b>iPhone nearby</b> = Bluetooth sees your iPhone. <b>Idle</b> = no keyboard or mouse input. Sampled every 5 min into <code>logs/presence.jsonl</code>.</p></div>
+    <div class="card"><h4>✨ Golden moments</h4><p>Each run, the agent can say "<i>an early run is worth it after 14:20, because the army is ready and storages are at 70%</i>". If you're then home, the iPhone is nearby and you've been off the Mac 20+ min, the scheduler starts a run early.</p></div>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card">
+      <h4>Agent decides <span class="pill tag-el">game-aware</span></h4>
+      <ul>
+        <li>Wake when a builder or the lab frees up, if the system can likely run then (from learned availability).</li>
+        <li>If that's during a busy daytime hour, wake at the next likely-free time and set "run early if idle".</li>
+        <li>Storages below target → wake when the army is ready (repeatedly at night).</li>
+        <li>Start long upgrades in the evening/night so they finish when the system can act.</li>
+      </ul>
+      <p><code>coc at</code> turns game timers into clock times. <code>coc suggest-wake</code> shows each candidate time and how often runs worked at that hour.</p>
+    </div>
+    <div class="card">
+      <h4>Scheduler adjusts <span class="pill tag-gold">real-world-aware</span></h4>
+      <table>
+        <tr><th>situation</th><th>action</th></tr>
+        <tr><td>you're using the Mac (input &lt; 5 min ago)</td><td>+30 min</td></tr>
+        <tr><td>iPhone in use / unlocked (agent sees it)</td><td>+30 min</td></tr>
+        <tr><td>not on the home network</td><td>+30 min</td></tr>
+        <tr><td>Mac screen locked</td><td>+30 min</td></tr>
+        <tr><td>another Claude session holds computer use</td><td>+15 min</td></tr>
+        <tr><td>battery &lt; 20 % and unplugged</td><td>+60 min</td></tr>
+        <tr><td>run produced no result</td><td>30 → 60 → 120 → 240 min backoff, notify after 3</td></tr>
+        <tr><td>golden moment + agent's early-run hint</td><td>run now</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h2 id="strategy">Strategy (your direction, the agent's details)</h2>
+  <div class="grid g3">
+    <div class="card"><h4>🏦 Bank, don't drain</h4><p>Keep gold, elixir and DE near full (<code>storage_target_fill</code>, start 90%). The moment a builder or the lab frees up, the money is already there, so the next job starts that run. Farm the bank back up afterwards. North-star metric: <b>"idle builder had to wait for loot" = 0</b>.</p></div>
+    <div class="card"><h4>🧱 Walls: their own track</h4><p>A few segments every day (start: 6/day, 3/run), paid only from the <b>surplus above the reserve</b>. The reserve covers builder jobs due in the next 12 h. When a storage is about to overflow, extra goes into walls. Unknowns (does a wall need an idle builder? row upgrades?) get verified in game and recorded in <code>walls.md</code>.</p></div>
+    <div class="card"><h4>⚔️ Farming</h4><p>Loot, not trophies. Start: zap-dragon, take bases with ≥1M gold+elixir, or high DE when that's the gap. Don't farm a resource that's already full. Every attack is logged with its strategy name, so different approaches can be compared.</p></div>
+  </div>
+
+  <h2 id="learning">Learning loop: it evolves, it isn't scripted</h2>
+  <p>Only the safety rules are fixed. Everything else is a starting point the agent may change when it has evidence.</p>
+  <div class="flow">
+    <div class="step"><b>Act</b><span>play using <code>strategy.md</code></span></div>
+    <div class="step"><b>Log</b><span>attacks, upgrades, walls, snapshots, experiments → <code>logs/*.jsonl</code></span></div>
+    <div class="step"><b>Measure</b><span><code>coc stats</code>: loot/attack by strategy, storage fill, walls/day, blocked builders</span></div>
+    <div class="step"><b>Tune</b><span><code>coc tune knob value --why</code> → <code>memory/tuning.json</code></span></div>
+    <div class="step"><b>Rewrite</b><span>daily review rewrites <code>strategy.md</code>; one experiment at a time</span></div>
+  </div>
+  <table>
+    <tr><th>knob (agent-tunable)</th><th>start</th><th>hard limit (only you can change it)</th></tr>
+    <tr><td><code>storage_target_fill</code></td><td>0.9</td><td></td></tr>
+    <tr><td><code>attacks_per_run</code></td><td>2</td><td><code>max_attacks_per_run</code> 5</td></tr>
+    <tr><td><code>next_per_attack</code></td><td>10</td><td><code>max_next_per_attack</code> 20</td></tr>
+    <tr><td><code>min_loot_gold_plus_elixir</code> / <code>min_loot_dark_elixir</code></td><td>1M / 5k</td><td></td></tr>
+    <tr><td><code>walls_per_day_target</code> / <code>walls_per_run</code></td><td>6 / 3</td><td><code>max_walls_per_run</code> 15</td></tr>
+    <tr><td><code>wall_reserve_hours</code></td><td>12</td><td></td></tr>
+    <tr><td>(any new knob the agent invents)</td><td></td><td><code>use_gems</code> false · <code>donate_to_clan</code> false</td></tr>
+  </table>
+
+  <h2 id="memory">Memory</h2>
+  <table>
+    <tr><th>file</th><th>purpose</th></tr>
+    <tr><td><code>memory/strategy.md</code></td><td><b>living strategy</b>: metrics, economy rules, queue approach, wall plan, timing pattern, open experiment, changelog</td></tr>
+    <tr><td><code>memory/base.json</code></td><td>live state: resources and caps, builders with absolute finish times, lab, heroes, army ready time</td></tr>
+    <tr><td><code>memory/upgrade_priorities.md</code></td><td>ordered builder queue with in-progress markers</td></tr>
+    <tr><td><code>memory/walls.md</code></td><td>wall inventory by level, costs, how wall upgrades work in this version</td></tr>
+    <tr><td><code>memory/attack_playbook.md</code></td><td>army, deployment, target rules, results</td></tr>
+    <tr><td><code>memory/ui_map.md</code> · <code>lessons.md</code></td><td>screen layout and quirks (e.g. an overlay app blocking clicks → Window › Center) · dated lessons</td></tr>
+    <tr><td><code>memory/tuning.json</code></td><td>knob values the agent set, each with its reason</td></tr>
+    <tr><td><code>logs/</code></td><td>runs, attacks, upgrades, research, walls, snapshots, experiments, tuning, presence (all jsonl) + session transcripts</td></tr>
+  </table>
+
+  <h2 id="safety">Safety rails</h2>
+  <div class="grid g2">
+    <div class="card ok"><h4>Enforced by code</h4><ul>
+      <li><b>PreToolUse hook</b> blocks <code>request_access</code> / <code>open_application</code> for any app but iPhone Mirroring. That's what makes auto-approving the access prompt safe.</li>
+      <li><code>--permission-mode dontAsk</code> plus an allow-list: computer use, read anything, edit only <code>memory/**</code>, Bash only for <code>./bin/coc</code>. No web.</li>
+      <li>Hard run cap (40 min), stall detection (5 min of silence → one nudge → stop), one run at a time, daily cap.</li>
+      <li>The parent Claude session's environment is never leaked into runs.</li>
+    </ul></div>
+    <div class="card warn"><h4>Enforced by instructions (the model must follow them)</h4><ul>
+      <li>Never tap anything with a real-money price. Close offers. (iOS also asks for authentication before a purchase.)</li>
+      <li>No gem spending unless <code>"use_gems": true</code>.</li>
+      <li>No settings, account, clan or chat actions.</li>
+      <li>On anything unexpected → finish with <code>needs_human</code>, which sends a Mac notification.</li>
+    </ul></div>
+  </div>
+
+  <h2 id="cmds">Commands</h2>
+  <table>
+    <tr><th>command</th><th>what it does</th></tr>
+    <tr><td><code>cocctl install</code></td><td>copy app to <code>~/.coc-agent</code>, seed memory (keeps existing), write Claude settings + hook, trust folder, enable computer-use, link <code>cocctl</code> into <code>~/.local/bin</code></td></tr>
+    <tr><td><code>cocctl start</code> / <code>stop</code> / <code>restart</code></td><td>background scheduler (nohup; keeps running after the terminal closes). <code>stop</code> also ends a run in progress.</td></tr>
+    <tr><td><code>cocctl autostart on|off</code></td><td>launchd agent <code>com.cocagent.scheduler</code>: starts at login, auto-restarts</td></tr>
+    <tr><td><code>cocctl status</code></td><td>running? paused? next run + reason, builder/lab timers from memory, recent runs</td></tr>
+    <tr><td><code>cocctl run-now [--attach]</code></td><td>trigger now (skips the "you're on the Mac" check); <code>--attach</code> shows the session live</td></tr>
+    <tr><td><code>cocctl pause</code> / <code>resume</code></td><td>hold new runs (e.g. while you play yourself)</td></tr>
+    <tr><td><code>cocctl next "+45m"</code></td><td>override the next wake-up</td></tr>
+    <tr><td><code>cocctl presence</code> · <code>home-here</code></td><td>what the Mac senses now · add the current network as another "home"</td></tr>
+    <tr><td><code>cocctl stats</code> · <code>availability</code> · <code>strategy</code></td><td>results · learned runnable hours · the agent's current strategy</td></tr>
+    <tr><td><code>cocctl install --reseed-memory</code></td><td>update code; reset memory to the seeds (old memory backed up)</td></tr>
+    <tr><td><code>cocctl logs [-f]</code> · <code>cocctl transcript</code></td><td>scheduler log · cleaned Claude output for the last run</td></tr>
+    <tr><td><code>cocctl doctor</code></td><td>checks expect, claude, config, computer-use enablement, lock holder, current preflight verdict</td></tr>
+  </table>
+
+  <h2 id="config">Config: <code>~/.coc-agent/config.json</code></h2>
+  <table>
+    <tr><th>key</th><th>default</th><th>meaning</th></tr>
+    <tr><td><code>night_hours</code></td><td>[["00:30","08:30"]]</td><td>when you're asleep; prime work time</td></tr>
+    <tr><td><code>keep_awake_at_night</code></td><td>true</td><td>hold <code>caffeinate</code> in the night window so the Mac doesn't sleep or lock</td></tr>
+    <tr><td><code>presence.home_gateway_macs</code></td><td>auto-detected</td><td>router address(es) that mean "home"</td></tr>
+    <tr><td><code>presence.iphone_bt_address</code></td><td>auto-detected</td><td>your iPhone over Bluetooth</td></tr>
+    <tr><td><code>presence.require_home</code> / <code>require_iphone_nearby</code></td><td>true / true</td><td>skip runs when away / when Bluetooth doesn't see the phone (checked 2026-11-13: Bluetooth "not nearby" matched "iPhone Not Found" in Mirroring)</td></tr>
+    <tr><td><code>opportunistic.min_idle_minutes</code> / <code>min_gap_minutes</code></td><td>20 / 45</td><td>how idle you must be, and the minimum gap since the last run, for an early run</td></tr>
+    <tr><td><code>mac_idle_required_seconds</code></td><td>300</td><td>for scheduled runs</td></tr>
+    <tr><td><code>defer_minutes</code></td><td>30</td><td>retry delay when blocked</td></tr>
+    <tr><td><code>min_interval_minutes</code> / <code>max_interval_minutes</code></td><td>15 / 360</td><td>clamp on the agent's chosen wake time</td></tr>
+    <tr><td><code>max_run_minutes</code> / <code>stall_seconds</code></td><td>40 / 300</td><td>run time limits</td></tr>
+    <tr><td><code>model</code> / <code>effort</code></td><td>"" (your default)</td><td>a cheaper model uses less plan usage</td></tr>
+    <tr><td><code>approve_keys</code></td><td>"DOWN,ENTER"</td><td>keys that accept the app-access prompt (its default option is Deny, so it needs Down then Enter)</td></tr>
+    <tr><td><code>game</code></td><td>see the knob table</td><td>starting values; the agent's <code>tuning.json</code> overrides them</td></tr>
+    <tr><td><code>game_limits</code></td><td>see the knob table</td><td>hard caps the agent can't exceed</td></tr>
+  </table>
+
+  <h2 id="limits">Limits &amp; risks (read these)</h2>
+  <div class="grid g2">
+    <div class="card warn"><h4>Account risk</h4><p>Supercell's Terms of Service ban bots and automation. Accounts can be suspended or banned. Since this goes through the real phone UI it looks like a human, but the ToS doesn't care how it's done. Use it knowing that.</p></div>
+    <div class="card warn"><h4>The Mac must be awake, unlocked &amp; plugged in at night</h4><p>Computer use can't act on a locked screen. The scheduler's <code>caffeinate</code> stops sleep and auto-lock during the night window, but <b>only if the Mac is unlocked when the window starts</b>. Leave it open, plugged in, with the brightness down. The battery guard skips runs below 20% unplugged. Leaving the Mac unlocked overnight is a physical-security trade-off.</p></div>
+    <div class="card note"><h4>macOS permissions</h4><p>Screen Recording and Accessibility belong to the app that launches Claude. With <code>cocctl start</code> from a terminal that already ran computer use, it inherits that grant. With <code>autostart</code>, macOS may ask again for <code>python3</code>. The run then ends with <code>needs_human</code> until you grant it.</p></div>
+    <div class="card note"><h4>Usage cost</h4><p>One manual attack used ~2.0M input-side tokens (mostly cache reads) and ~9.5k output tokens over 27 requests. A full run with upgrades and 1 to 3 attacks will be roughly 1 to 4× that. On a Claude subscription that's plan usage, not dollars. Lower it with <code>max_attacks_per_run</code>, a cheaper <code>model</code>, or a higher <code>min_interval_minutes</code>.</p></div>
+    <div class="card note"><h4>One computer-use session at a time</h4><p>Any other Claude Code session that used computer use holds the lock until it exits. The scheduler waits (+15 min) instead of failing. <code>cocctl doctor</code> shows who holds it.</p></div>
+    <div class="card ok"><h4>Verified on 2026-11-13</h4><p>The first real run worked end to end. The driver picked Allow on the access prompt (Down, Enter), the agent opened CoC through iPhone Mirroring, started a Blacksmith upgrade, did 2 farming attacks (+737k gold, +1.14M elixir), filled in base.json, and scheduled its own next runs.</p></div>
+  </div>
+  <p class="c" style="margin-top:40px">coc-agent · files in repo: <code>bin/cocctl</code>, <code>app/scheduler.py</code>, <code>app/run_session.exp</code>, <code>app/CLAUDE.md</code>, <code>app/tools/coc.py</code>, <code>app/hooks/guard_apps.py</code>, <code>app/memory_seed/*</code> (incl. strategy.md, walls.md, tuning.json), <code>app/config.default.json</code></p>
+</main>
+</body>
+</html>

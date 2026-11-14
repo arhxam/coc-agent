@@ -1,0 +1,12 @@
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1280px;height:640px;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif;color:#e6edf3;
+ background:radial-gradient(1000px 600px at 85% 20%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 500px at 0% 100%,rgba(255,176,32,.14),transparent 60%),#0b0f17}
+.mono{font-family:"SF Mono",Menlo,monospace}
+.pill{display:inline-block;padding:6px 14px;border-radius:999px;font-size:17px;border:1px solid #2d3748;color:#c9d1d9;background:rgba(255,255,255,.03);margin-right:8px}
+.y{color:#ffc94d}.p{color:#c79bff}.b{color:#8fb8ff}.g{color:#6be0a0}.d{color:#8b98a8}.r{color:#ff8a8a}
+.win{background:#0f1520;border:1px solid #263041;border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.5);overflow:hidden}
+.bar{height:34px;background:#151c29;border-bottom:1px solid #263041;display:flex;align-items:center;padding-left:14px;gap:8px}
+.bar i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.bar span{margin-left:12px;color:#8b98a8;font-size:14px}
+.foot{position:absolute;bottom:26px;left:64px;right:64px;display:flex;justify-content:space-between;color:#6b7788;font-size:17px}

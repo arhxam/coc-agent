@@ -1,0 +1,69 @@
+{
+  "claude_bin": "",
+  "model": "",
+  "effort": "",
+  "permission_mode": "dontAsk",
+
+  "defer_minutes": 30,
+  "defer_minutes_mac_busy": 30,
+  "defer_minutes_cu_lock_busy": 15,
+  "defer_minutes_low_battery": 60,
+  "mac_idle_required_seconds": 300,
+  "skip_idle_check": false,
+
+  "night_hours": [["00:30", "08:30"]],
+  "keep_awake_at_night": true,
+  "quiet_hours": [],
+
+  "presence": {
+    "enabled": true,
+    "home_gateway_macs": [],
+    "iphone_bt_address": "",
+    "require_home": true,
+    "require_iphone_nearby": true
+  },
+  "presence_sample_minutes": 5,
+
+  "opportunistic": {
+    "enabled": true,
+    "min_idle_minutes": 20,
+    "min_gap_minutes": 45
+  },
+
+  "min_interval_minutes": 15,
+  "max_interval_minutes": 360,
+  "max_run_minutes": 40,
+  "stall_seconds": 300,
+  "max_runs_per_day": 36,
+  "min_battery_percent": 20,
+  "daily_review_after_hour": 4,
+
+  "notify": true,
+  "allowed_apps": ["iPhone Mirroring"],
+  "auto_approve_app_access": true,
+  "approve_keys": "DOWN,ENTER",
+
+  "game_limits": {
+    "_note": "Hard caps the agent can NOT tune past. Edit these yourself.",
+    "use_gems": false,
+    "max_attacks_per_run": 5,
+    "max_next_per_attack": 20,
+    "max_walls_per_run": 15,
+    "donate_to_clan": false,
+    "do_builder_base": false
+  },
+
+  "game": {
+    "_note": "Starting values only. The agent tunes these in memory/tuning.json as it learns (within game_limits).",
+    "storage_target_fill": 0.9,
+    "attacks_per_run": 2,
+    "next_per_attack": 10,
+    "min_loot_gold_plus_elixir": 1000000,
+    "min_loot_dark_elixir": 5000,
+    "wall_reserve_hours": 12,
+    "walls_per_day_target": 6,
+    "walls_per_run": 3,
+    "do_research": true,
+    "collect_rewards": true
+  }
+}
