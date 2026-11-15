@@ -16,6 +16,8 @@
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
+<p align="center"><img src="docs/images/hero.jpg" alt="Real screenshot: Claude attacking with Electro Dragons through iPhone Mirroring, with its own narration" width="100%"></p>
+
 ---
 
 ## What it does
@@ -26,6 +28,29 @@ There's no game API, no memory reading and no injected code. Claude **looks at t
 - **Walls as an overflow valve.** It upgrades walls only with surplus above a reserve, a few per day.
 - **Schedules around your life.** It does most of its work in a night window, and during the day only when you're home, the Mac is idle and the phone is locked nearby. **Claude picks its own next wake-up time** ("Builder 2 frees at 03:10, wake then").
 - **Learns.** It keeps a persistent memory, logs every attack and upgrade, tunes its own knobs (loot thresholds, attacks per run) from its stats, runs one experiment at a time, and rewrites `strategy.md` in a daily review.
+
+## See it play
+
+These are real screenshots Claude took through iPhone Mirroring during its first run. The captions are its own words from the session log. Other players' names, and mine, are blurred.
+
+<p align="center"><img src="docs/images/timeline.jpg" alt="Six real screenshots from one run: home village, upgrade, scouting, two attacks, victory" width="100%"></p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/game/home.jpg" alt="Home village"><br><sub><b>Reads the base.</b> Resources, builders (1/5 free), loot to collect.</sub></td>
+    <td width="50%"><img src="docs/images/game/upgrade.jpg" alt="Upgrade confirm dialog"><br><sub><b>Starts upgrades.</b> It checks the confirm button costs elixir, not gems, and skips the Hammer of Building.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/game/scout.jpg" alt="Scouting an opponent base"><br><sub><b>Scouts.</b> Zooms on the available loot and hits Next until a base meets its loot threshold.</sub></td>
+    <td><img src="docs/images/game/dragons.jpg" alt="Electro Dragons attacking"><br><sub><b>Attacks.</b> Lightning on the air defenses, then Electro Dragons in a line from one side.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/game/victory.jpg" alt="Victory screen, 67%, 357K gold"><br><sub><b>Banks the loot.</b> 1★ 67%, +391K gold +345K elixir with the league bonus. Then it logs the result for <code>coc stats</code>.</sub></td>
+    <td><img src="docs/images/game/builders.jpg" alt="Builder list with timers" width="62%"><br><sub><b>Plans around timers.</b> It turns every builder timer into a clock time and picks its next wake-up from them.</sub></td>
+  </tr>
+</table>
+
+### What it wrote afterwards
 
 <p align="center"><img src="docs/images/run.png" alt="The agent's first real run: 2 attacks, a builder upgrade started, next wake-up chosen" width="90%"></p>
 
@@ -127,7 +152,7 @@ Config lives in `~/.coc-agent/config.json`. The useful knobs are the night windo
 
 ## Disclaimer
 
-Not affiliated with, endorsed, sponsored, or approved by Supercell. Clash of Clans is a trademark of Supercell Oy. Not affiliated with Anthropic or Apple.
+This material is unofficial and is not endorsed by Supercell. For more information see Supercell's Fan Content Policy: [www.supercell.com/fan-content-policy](https://www.supercell.com/fan-content-policy). Clash of Clans is a trademark of Supercell Oy. The game screenshots are from my own account's gameplay. Not affiliated with Anthropic or Apple.
 
 ## License
 
