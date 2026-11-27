@@ -1,0 +1,33 @@
+name: ci
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            python: "3.9"   # what /usr/bin/python3 is on macOS
+          - os: macos-latest
+            python: "3.13"
+          - os: ubuntu-latest
+            python: "3.12"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Shell syntax
+        run: bash -n bin/cocctl
+      - name: JSON files parse
+        run: |
+          for f in app/config.default.json app/profiles/*.json app/memory_seed/*.json examples/learned_memory/*.json; do
+            python -c "import json,sys; json.load(open(sys.argv[1]))" "$f" || { echo "bad JSON: $f"; exit 1; }
+          done
