@@ -1,0 +1,58 @@
+{
+  "updated_at": "2026-11-27T06:52:00+05:30",
+  "blocked": null,
+  "_note": "Live state. The agent rewrites it every run. All times are absolute ISO (use ./bin/coc at). null = unknown, verify in game. coc.py reads builders.busy[].target/finishes_at and lab.busy.target/finishes_at (objects, not strings).",
+  "town_hall": 13,
+  "town_hall_note": "Own TH looks like TH13 (blue-teal); not tapped to verify. Opponents seen 11-27: TH12-13.",
+  "resources": {"gold": 7499573, "elixir": 8378282, "dark_elixir": 71300, "gems": 1127},
+  "resources_note": "Read 06:48 on 11-27 at the start of an attack (gold 42%, elixir 47%). An attack on a 1.08M/1.01M TH13 was running when the owner picked up the phone at 06:50: its loot is NOT included, read again next run.",
+  "storage_caps": {"gold": 18000000, "elixir": 18000000, "dark_elixir": null},
+  "storage_note": "Zoom-read 06:45 on 11-27 after 5 attacks (gold 33%, elixir 40%). The Treasury also holds a 900k/900k/4.5k Star Bonus claimed at 06:29 (not collected into storages; leave it as a safe reserve).",
+  "builders": {
+    "total": 5,
+    "free_seen": 0,
+    "busy": [
+      {"target": "Mortar L12->13", "finishes_at": "2026-11-28T20:01:15+05:30"},
+      {"target": "Hidden Tesla L10->11", "finishes_at": "2026-11-28T23:50:00+05:30"},
+      {"target": "Squad Barracks L1->2", "finishes_at": "2026-11-29T13:52:00+05:30"},
+      {"target": "X-Bow L6->7", "finishes_at": "2026-11-29T23:50:00+05:30"},
+      {"target": "Archer Queen ->L68", "finishes_at": "2026-11-30T08:50:00+05:30"}
+    ]
+  },
+  "lab": {"busy": {"target": "Healing Spell L7->8", "finishes_at": "2026-12-01T04:50:00+05:30"}, "known_idle": false, "note": "Lab tab shows 1/2 when busy (2nd slot = gem Goblin Researcher)."},
+  "pet_house": {"busy": null, "note": "Not checked 11-27 (4th list tab showed a padlock). Check next run."},
+  "builder_base": {
+    "updated_at": "2026-11-27T06:46:00+05:30",
+    "builder_hall": 6,
+    "resources": {"gold": 202379, "elixir": 49912},
+    "trophies": 1798,
+    "stars_today": "6/8",
+    "builders": {"total": 2, "busy": [
+      {"target": "BB: Mine L4->5", "finishes_at": "2026-11-27T11:19:41+05:30"},
+      {"target": "BB: Firecrackers L4->5", "finishes_at": "2026-11-28T01:49:24+05:30"}
+    ]},
+    "star_lab": {"busy": {"target": "BB: Beta Minion L8->9", "finishes_at": "2026-11-28T10:45:00+05:30"}},
+    "next_jobs": "Gold: Hidden Tesla 560k 19h10m, Clock Tower 560k 9h30m, Cannon 480k 19h10m, Wall x100 120k, Mine 40k 4h40m / 12k 40m, Push Trap x3 32k 3h10m, Builder Hall 960k 2d9h. Star Lab (elixir): Baby Dragon 800k, Boxer Giant 800k, Sneaky Archer 800k, Cannon Cart 880k (all 1d4h)."
+  },
+  "heroes": {
+    "Barbarian King": {"level": 67, "upgrading_until": null, "note": "upgrade 96,800 DE 3d4h"},
+    "Archer Queen": {"level": 67, "upgrading_until": "2026-11-30T08:50:00+05:30"},
+    "Grand Warden": {"level": 40, "upgrading_until": null, "note": "upgrade 6.64M elixir 2d9h; keep free, he carries attacks"},
+    "Royal Champion": {"level": 2, "upgrading_until": null, "note": "upgrade 12,000 DE 8h"},
+    "Minion Prince": {"level": 40, "upgrading_until": null, "note": "upgrade 40,000 DE 1d19h"}
+  },
+  "army": {
+    "composition": "9 Electro Dragons, 3 balloon-type, 70 event barbarians (one per click), 11 Lightning, 1 siege, King + Minion Prince + Warden + Royal Champion; CC troops.",
+    "ready_at": null,
+    "ready_note": "No training time: the army is full again right after each battle."
+  },
+  "ranked_attacks": {"used_today": 8, "limit": 8, "note": "8/8 at 06:22 on 11-27 (owner plays them); 3d4h left in the ranked period. Use regular Find a Match (1,200 gold)."},
+  "notes": [
+    "A discount (~20%) is active on all upgrades seen 11-27 (e.g. Mortar 2.8M -> 2.24M, Healing Spell 6M -> 4.8M).",
+    "Hero levels read from the list badges 11-27 are much lower than the 11-18 notes (King 68 vs 95): the game seems to have rescaled hero levels. Trust the new numbers.",
+    "Next jobs when a builder frees (prices 11-27): gold: X-Bow x3 3.68M 2d19h, Hidden Tesla x4 2.24M 1d19h, Mortar x3 2.24M 1d14h, Wizard Tower x5 2.08M 1d9h, Seeking Air Mine 2.0M 1d4h, Archer Tower x8 1.6M 19h, Cannon x7 1.44M 12h40m, Air Bomb x6 800k 11h. Elixir: Spell Factory 7.2M 5d14h, Army Camp x3 5.6M 3d14h, DE Storage 3.04M 2d4h, Gold Storage x3 2.24M 19h, Dark Barracks 8M 6d. DE: King 96.8k, Minion Prince 40k, Royal Champion 12k, Crafting Station 36k.",
+    "Lab next (elixir): Dragon 6M 4d, Dragon Rider 5.6M 4d9h, Battle Blimp / Stone Slammer 5.2M 5d14h, Balloon 4.8M, Healer / Miner 4.4M, Jump / Clone 4M, Giant 3.68M, Siege Barracks 2.8M. DE: Hog 68k, Lava Hound / Golem 64k, Bowler / Skeleton 60k.",
+    "Walls: 230 segments at L14 -> L15, 1.6M each (gold or elixir). Need a free builder. See walls.md.",
+    "Never use: Goblin Builder / Researcher (gems), Hammer, Book, Wall Ring, storage Fill, Finish Now. Town Hall upgrades are the owner's call."
+  ]
+}

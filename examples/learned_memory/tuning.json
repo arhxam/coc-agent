@@ -1,0 +1,15 @@
+{
+  "updated_at": "2026-11-27T06:04:36+05:30",
+  "knobs": {
+    "attacks_per_run": {
+      "value": 5,
+      "why": "army is instantly ready and TH12 targets give 3 stars in ~2 min; 2 attacks took 9 min total, storages at ~28%",
+      "at": "2026-11-16T05:56:23+05:30"
+    },
+    "min_loot_gold_plus_elixir": {
+      "value": 1200000,
+      "why": "opponents are TH12-13 now; 2 attacks at 0 Nexts averaged 1.83M, and 3 Nexts on 11-27 found nothing above 1.34M",
+      "at": "2026-11-27T06:04:36+05:30"
+    }
+  }
+}
