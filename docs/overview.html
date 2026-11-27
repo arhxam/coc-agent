@@ -58,7 +58,7 @@
   <div class="card warn" style="margin-top:20px"><h4>Unofficial research project, for educational purposes only</h4><p>coc-agent is an experiment in AI computer use. It is not affiliated with, endorsed by or sponsored by Supercell, Anthropic or Apple. <b>Supercell's <a href="https://supercell.com/en/terms-of-service/">Terms of Service</a> forbid bots and automation, so running it can get your account suspended or permanently banned.</b> Only use an account you're prepared to lose. You are responsible for how you use it. See the <a href="#disclaimer">disclaimer</a>.</p></div>
   <nav>
     <a href="#quick">Quick start</a><a href="#arch">Architecture</a><a href="#run">A single run</a><a href="#timing">Timing</a>
-    <a href="#strategy">Strategy</a><a href="#learning">Learning loop</a><a href="#memory">Memory</a><a href="#safety">Safety rails</a><a href="#cmds">Commands</a><a href="#config">Config</a><a href="#limits">Limits &amp; risks</a><a href="#disclaimer">Disclaimer</a>
+    <a href="#profiles">Profiles</a><a href="#strategy">Strategy</a><a href="#learning">Learning loop</a><a href="#memory">Memory</a><a href="#safety">Safety rails</a><a href="#cmds">Commands</a><a href="#config">Config</a><a href="#limits">Limits &amp; risks</a><a href="#disclaimer">Disclaimer</a>
   </nav>
 
   <h2 id="quick">Quick start</h2>
@@ -68,10 +68,13 @@
 <span class="c"># 2. close any other Claude Code session that used computer use (it holds a lock), then check</span>
 cocctl doctor
 
-<span class="c"># 3. watch one supervised run in your terminal (hands off the mouse)</span>
+<span class="c"># 3. pick a strategy profile, night window and what the agent may touch</span>
+cocctl setup
+
+<span class="c"># 4. watch one supervised run in your terminal (hands off the mouse); the first run surveys your account</span>
 cocctl run-now --attach
 
-<span class="c"># 4. keep it running in the background                 # stop it any time</span>
+<span class="c"># 5. keep it running in the background                 # stop it any time</span>
 cocctl start                                          cocctl stop
 cocctl status        <span class="c"># next run + why, base timers, recent runs</span>
 cocctl logs -f       <span class="c"># live scheduler log</span>
@@ -202,7 +205,22 @@ cocctl autostart on                                   cocctl autostart off</code
     </div>
   </div>
 
-  <h2 id="strategy">Strategy (your direction, the agent's details)</h2>
+  <h2 id="profiles">Strategy profiles: you pick the goal, the agent picks the moves</h2>
+  <p>The owner's direction comes from a <b>profile</b>: a short written brief the agent reads every run (<code>app/profiles/&lt;name&gt;.md</code>) plus starting knob values (<code>&lt;name&gt;.json</code>). Config layers are <b>defaults ← profile ← your config.json</b>, and the agent's own tuning sits on top, scoped to the profile it was made under. Add your own direction in plain words with <code>cocctl note "…"</code>.</p>
+  <div class="grid g3">
+    <div class="card"><h4>🏦 max-out <span class="pill tag-g">default</span></h4><p>Max each Town Hall fast: bank loot so no builder waits, walls from the surplus, night-first farming, next TH when only walls and traps are left.</p></div>
+    <div class="card"><h4>🚀 fast-progress</h4><p>Offense and economy first, defenses only to fill idle builders, Town Hall as soon as the key offense is done. Spend, don't bank.</p></div>
+    <div class="card"><h4>🛡️ war-ready</h4><p>Defenses, Clan Castle and walls get real priority; never more than one hero upgrading, so war attacks stay strong.</p></div>
+    <div class="card"><h4>🏆 trophy-push</h4><p><code>attack_goal: trophies</code>: scout for bases the army can 3-star, keep heroes up, offense first.</p></div>
+    <div class="card"><h4>🧱 endgame</h4><p>Max or nearly maxed: farm hard and pour the surplus into walls and hero equipment.</p></div>
+    <div class="card"><h4>🪙 frugal</h4><p>Lowest token use: ≤6 short runs a day, one attack only when an upgrade waits for loot, long jobs so runs stay rare.</p></div>
+  </div>
+  <div class="card note" style="margin-top:14px">
+    <h4>Any account, first run</h4>
+    <p>The seed memory is generic. When <code>base.json</code> has no Town Hall yet, the scheduler tells the agent to do an <b>onboarding survey</b>: read the Town Hall, builders, army and heroes, then write its upgrade queue, attack playbook and strategy from the profile and the shipped <code>app/knowledge/</code> base (principles, upgrade order by TH, farming, attack recipes, Builder Base, side modes, UI basics).</p>
+  </div>
+
+  <h2 id="strategy">Strategy (max-out profile: your direction, the agent's details)</h2>
   <div class="grid g3">
     <div class="card"><h4>🏦 Bank, don't drain</h4><p>Keep gold, elixir and DE near full (<code>storage_target_fill</code>, start 90%). The moment a builder or the lab frees up, the money is already there, so the next job starts that run. Farm the bank back up afterwards. North-star metric: <b>"idle builder had to wait for loot" = 0</b>.</p></div>
     <div class="card"><h4>🧱 Walls: their own track</h4><p>A few segments every day (start: 6/day, 3/run), paid only from the <b>surplus above the reserve</b>. The reserve covers builder jobs due in the next 12 h. When a storage is about to overflow, extra goes into walls. Unknowns (does a wall need an idle builder? row upgrades?) get verified in game and recorded in <code>walls.md</code>.</p></div>
@@ -216,7 +234,8 @@ cocctl autostart on                                   cocctl autostart off</code
     <div class="step"><b>Log</b><span>attacks, upgrades, walls, snapshots, experiments → <code>logs/*.jsonl</code></span></div>
     <div class="step"><b>Measure</b><span><code>coc stats</code>: loot/attack by strategy, storage fill, walls/day, blocked builders</span></div>
     <div class="step"><b>Tune</b><span><code>coc tune knob value --why</code> → <code>memory/tuning.json</code></span></div>
-    <div class="step"><b>Rewrite</b><span>daily review rewrites <code>strategy.md</code>; one experiment at a time</span></div>
+    <div class="step"><b>Rewrite</b><span>daily review rewrites <code>strategy.md</code>; one measured experiment at a time (<code>coc experiment</code>)</span></div>
+    <div class="step"><b>Zoom out</b><span>weekly review: <code>coc progress --days 7</code>, Town Hall decision, prune memory</span></div>
   </div>
   <table>
     <tr><th>knob (agent-tunable)</th><th>start</th><th>hard limit (only you can change it)</th></tr>
@@ -226,7 +245,8 @@ cocctl autostart on                                   cocctl autostart off</code
     <tr><td><code>min_loot_gold_plus_elixir</code> / <code>min_loot_dark_elixir</code></td><td>1M / 5k</td><td></td></tr>
     <tr><td><code>walls_per_day_target</code> / <code>walls_per_run</code></td><td>6 / 3</td><td><code>max_walls_per_run</code> 15</td></tr>
     <tr><td><code>wall_reserve_hours</code></td><td>12</td><td></td></tr>
-    <tr><td>(any new knob the agent invents)</td><td></td><td><code>use_gems</code> false · <code>donate_to_clan</code> false</td></tr>
+    <tr><td><code>attack_goal</code> / <code>max_heroes_upgrading</code></td><td>loot / – (profile-set)</td><td><code>max_attacks_per_day</code> 60</td></tr>
+    <tr><td>(any new knob the agent invents)</td><td></td><td><code>use_gems</code> · <code>use_magic_items</code> · <code>donate_to_clan</code> · <code>do_clan_capital</code> · <code>do_builder_base</code> off; <code>allow_town_hall_upgrade</code> · <code>allow_new_buildings</code> · <code>use_hero_equipment_ore</code> on</td></tr>
   </table>
 
   <h2 id="memory">Memory</h2>
@@ -262,6 +282,9 @@ cocctl autostart on                                   cocctl autostart off</code
   <table>
     <tr><th>command</th><th>what it does</th></tr>
     <tr><td><code>cocctl install</code></td><td>copy app to <code>~/.coc-agent</code>, seed memory (keeps existing), write Claude settings + hook, trust folder, enable computer-use, link <code>cocctl</code> into <code>~/.local/bin</code></td></tr>
+    <tr><td><code>cocctl setup</code> · <code>profile list|show|set</code></td><td>guided setup · choose the strategy profile (the next run re-plans for it)</td></tr>
+    <tr><td><code>cocctl note "…"</code> · <code>config get|set|unset</code> · <code>direction</code></td><td>your own direction in plain words · any setting by dotted key · exactly what the agent reads</td></tr>
+    <tr><td><code>cocctl progress</code> · <code>today</code> · <code>experiments</code></td><td>day-by-day trend (builder/lab utilisation, upgrades, walls, loot, TH, trophies) · today vs daily caps · the open experiment and its measured effect</td></tr>
     <tr><td><code>cocctl start</code> / <code>stop</code> / <code>restart</code></td><td>background scheduler (nohup; keeps running after the terminal closes). <code>stop</code> also ends a run in progress.</td></tr>
     <tr><td><code>cocctl autostart on|off</code></td><td>launchd agent <code>com.cocagent.scheduler</code>: starts at login, auto-restarts</td></tr>
     <tr><td><code>cocctl status</code></td><td>running? paused? next run + reason, builder/lab timers from memory, recent runs</td></tr>
@@ -278,6 +301,7 @@ cocctl autostart on                                   cocctl autostart off</code
   <h2 id="config">Config: <code>~/.coc-agent/config.json</code></h2>
   <table>
     <tr><th>key</th><th>default</th><th>meaning</th></tr>
+    <tr><td><code>strategy.profile</code></td><td>"max-out"</td><td>the strategy profile (see above); <code>strategy.notes</code> = your own direction; <code>strategy.attack_style</code> = "auto" or a recipe name</td></tr>
     <tr><td><code>night_hours</code></td><td>[["00:30","08:30"]]</td><td>when you're asleep; prime work time</td></tr>
     <tr><td><code>keep_awake_at_night</code></td><td>true</td><td>hold <code>caffeinate</code> in the night window so the Mac doesn't sleep or lock</td></tr>
     <tr><td><code>presence.home_gateway_macs</code></td><td>auto-detected</td><td>router address(es) that mean "home"</td></tr>
@@ -310,7 +334,7 @@ cocctl autostart on                                   cocctl autostart off</code
   <p><b>What it doesn't do.</b> It doesn't modify or inject code into the game, read its memory, intercept its network traffic or get around any anti-cheat or security measure. It only sees and taps the screen through iPhone Mirroring. Please don't extend it to do any of those things or to dodge detection, and don't sell it or offer it as a service.</p>
   <p><b>No warranty.</b> Provided "as is" under the MIT License, without warranty of any kind. The authors aren't liable for banned or lost accounts, lost progress, spent resources, usage costs or any other damage from using it.</p>
 
-  <p class="c" style="margin-top:40px">coc-agent · files in repo: <code>bin/cocctl</code>, <code>app/scheduler.py</code>, <code>app/run_session.exp</code>, <code>app/CLAUDE.md</code>, <code>app/tools/coc.py</code>, <code>app/hooks/guard_apps.py</code>, <code>app/memory_seed/*</code> (incl. strategy.md, walls.md, tuning.json), <code>app/config.default.json</code></p>
+  <p class="c" style="margin-top:40px">coc-agent · files in repo: <code>bin/cocctl</code>, <code>app/scheduler.py</code>, <code>app/run_session.exp</code>, <code>app/CLAUDE.md</code>, <code>app/tools/coc.py</code>, <code>app/hooks/guard_apps.py</code>, <code>app/memory_seed/*</code> (incl. strategy.md, walls.md, tuning.json), <code>app/profiles/*</code>, <code>app/knowledge/*</code>, <code>app/cocconf.py</code>, <code>app/tools/cocsetup.py</code>, <code>app/config.default.json</code></p>
 </main>
 </body>
 </html>
