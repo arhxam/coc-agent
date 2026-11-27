@@ -27,6 +27,7 @@ There's no game API, no memory reading and no injected code. Claude **looks at t
 - **Banks loot.** It keeps storages near full so the moment a builder or the lab frees up, the next upgrade starts. Its #1 metric is *"a builder never waits for loot."*
 - **Walls as an overflow valve.** It upgrades walls only with surplus above a reserve, a few per day.
 - **Schedules around your life.** It does most of its work in a night window, and during the day only when you're home, the Mac is idle and the phone is locked nearby. **Claude picks its own next wake-up time** ("Builder 2 frees at 03:10, wake then").
+- **Plays the Builder Base too** (optional, `game_limits.do_builder_base`). It sails over, collects the Elixir Cart, keeps the Builder Base builders and the Star Lab busy, and wins battles for the daily star bonus.
 - **Learns.** It keeps a persistent memory, logs every attack and upgrade, tunes its own knobs (loot thresholds, attacks per run) from its stats, runs one experiment at a time, and rewrites `strategy.md` in a daily review.
 
 ## See it play
@@ -116,7 +117,7 @@ cocctl autostart on           # optional: start at login via launchd
 | `cocctl next "+20m"` | override the next run time |
 | `cocctl uninstall` | stop the scheduler and remove autostart (keeps `~/.coc-agent`; delete it for a clean slate) |
 
-Config lives in `~/.coc-agent/config.json`. The useful knobs are the night window (`night_hours`), `max_run_minutes`, `model` (a cheaper model uses less of your plan), and `game_limits` (hard caps the agent can't tune past).
+Config lives in `~/.coc-agent/config.json`. Set `game_limits.do_builder_base` to `true` to have the agent play the Builder Base as well. The useful knobs are the night window (`night_hours`), `max_run_minutes`, `model` (a cheaper model uses less of your plan), and `game_limits` (hard caps the agent can't tune past).
 
 ## Safety rails
 
@@ -139,7 +140,8 @@ Config lives in `~/.coc-agent/config.json`. The useful knobs are the night windo
 | `app/CLAUDE.md` | the agent's run protocol and hard rules |
 | `app/tools/coc.py` | the `coc` helper the agent uses for time math, logging, stats, tuning and `finish` |
 | `app/hooks/guard_apps.py` | hook that restricts computer use to iPhone Mirroring |
-| `app/memory_seed/` | starting memory: `strategy.md`, playbook, priorities, walls, UI quirks |
+| `app/memory_seed/` | starting memory: `strategy.md`, playbook, priorities, walls, Builder Base notes, UI quirks |
+| `examples/learned_memory/` | a snapshot of the memory the agent wrote itself after a day of runs |
 | `app/config.default.json` | defaults (override in `~/.coc-agent/config.json`) |
 | `docs/` | design overview and images (image sources in `docs/images/src/`) |
 
@@ -148,6 +150,7 @@ Config lives in `~/.coc-agent/config.json`. The useful knobs are the night windo
 - ⚠️ **Automating Clash of Clans is against Supercell's Terms of Service.** Your account can be banned. Use it on an account you're willing to lose. This is an experiment in agentic computer use, not a cheat tool.
 - It's slow and uses a lot of tokens: each run is many screenshots. On a Claude subscription that's plan usage. Lower it with fewer attacks per run, a cheaper `model`, or a longer `min_interval_minutes`.
 - It only runs when the Mac is awake and unlocked, the lid is open, and the phone is reachable. In practice access, not loot, turned out to be the bottleneck (the agent worked this out itself, see the strategy screenshot above).
+- Claude Code updates can change the wording of the computer-use access prompt. `run_session.exp` matches both known wordings. If runs start hanging at the prompt, check `logs/sessions/*.tty.log`.
 - Screen coordinates and game UI change between versions. The agent records quirks in `ui_map.md` and adapts, but expect occasional `needs_human` runs.
 
 ## Disclaimer
