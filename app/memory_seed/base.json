@@ -1,7 +1,11 @@
 {
   "updated_at": null,
-  "_note": "Live state. The agent rewrites it every run. All times are absolute ISO (use ./bin/coc at). null = unknown, verify in game.",
+  "_note": "Live state. The agent rewrites it every run. All times are absolute ISO (use ./bin/coc at). null = unknown, verify in game. town_hall null = the onboarding survey hasn't run yet.",
   "town_hall": null,
+  "player_level": null,
+  "trophies": null,
+  "league": null,
+  "in_clan": null,
   "resources": {"gold": null, "elixir": null, "dark_elixir": null, "gems": null},
   "storage_caps": {"gold": null, "elixir": null, "dark_elixir": null},
   "builders": {
@@ -10,15 +14,14 @@
   },
   "lab": {"busy": null, "known_idle": false},
   "pet_house": {"busy": null},
-  "heroes": {
-    "Barbarian King": {"level": null, "upgrading_until": null},
-    "Archer Queen": {"level": null, "upgrading_until": null},
-    "Grand Warden": {"level": null, "upgrading_until": null}
-  },
+  "heroes": {},
+  "helpers": {},
   "army": {
-    "composition": "9 Electro Dragon, 5 Wall Breaker, 11 Lightning Spell, siege machine, 3 heroes",
+    "composition": null,
+    "recipe": null,
     "ready_at": null
   },
-  "ranked_attacks": {"used_today": null, "limit": 8},
+  "builder_base": {"unlocked": null, "builder_hall": null, "builders": {"total": null, "busy": []}, "star_lab": {"busy": null}},
+  "ranked_attacks": {"used_today": null, "limit": null},
   "notes": []
 }
