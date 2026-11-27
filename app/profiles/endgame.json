@@ -1,0 +1,16 @@
+{
+  "summary": "A (nearly) maxed base: everything left is walls, hero equipment and research. Farm hard and pour the surplus into walls.",
+  "best_for": "Max Town Hall accounts, or when the agent reports only walls and equipment are left at the current Town Hall.",
+  "config": {
+    "game": {
+      "storage_target_fill": 0.8,
+      "walls_per_day_target": 25,
+      "walls_per_run": 8,
+      "wall_reserve_hours": 6,
+      "attacks_per_run": 3
+    },
+    "game_limits": {
+      "max_walls_per_run": 30
+    }
+  }
+}

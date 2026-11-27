@@ -1,0 +1,22 @@
+{
+  "summary": "Low token use: a few short runs a day that collect, keep every builder and the lab busy, and attack only when an upgrade is blocked on loot.",
+  "best_for": "Smaller Claude plans, or anyone who wants steady progress at the lowest cost.",
+  "config": {
+    "max_runs_per_day": 6,
+    "min_interval_minutes": 90,
+    "max_run_minutes": 20,
+    "game": {
+      "attacks_per_run": 1,
+      "next_per_attack": 6,
+      "walls_per_day_target": 3,
+      "walls_per_run": 3,
+      "collect_rewards": true
+    },
+    "game_limits": {
+      "max_attacks_per_run": 2
+    },
+    "opportunistic": {
+      "enabled": false
+    }
+  }
+}

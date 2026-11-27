@@ -30,10 +30,15 @@ def main():
         sys.exit(0)
     tool = event.get("tool_name", "")
     inp = event.get("tool_input") or {}
-    try:
-        cfg = json.loads((COC_HOME / "config.json").read_text())
+    try:  # merged config (defaults <- profile <- owner), so a slim config.json still works
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        import cocconf
+        cfg = cocconf.config()
     except Exception:
-        cfg = {}
+        try:
+            cfg = json.loads((COC_HOME / "config.json").read_text())
+        except Exception:
+            cfg = {}
     allowed = {norm(a) for a in cfg.get("allowed_apps", ["iPhone Mirroring"])}
 
     if tool.endswith("__request_access"):

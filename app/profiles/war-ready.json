@@ -1,0 +1,11 @@
+{
+  "summary": "A strong, war-ready base: defenses, Clan Castle and walls get real priority, and heroes are never all down at once.",
+  "best_for": "Players in an active war clan or CWL who care how their base holds up.",
+  "config": {
+    "game": {
+      "walls_per_day_target": 12,
+      "walls_per_run": 4,
+      "max_heroes_upgrading": 1
+    }
+  }
+}

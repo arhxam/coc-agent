@@ -21,6 +21,8 @@ night. It decides whether a run can start right now:
     python3 scheduler.py preflight    # print the preflight verdict
     python3 scheduler.py presence     # print what the Mac can sense right now
 """
+from __future__ import annotations
+
 import datetime as dt
 import json
 import os
@@ -32,6 +34,9 @@ import sys
 import time
 import uuid
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import cocconf  # noqa: E402
 
 COC_HOME = Path(os.environ.get("COC_HOME", Path.home() / ".coc-agent"))
 APP = COC_HOME / "app"
@@ -99,11 +104,8 @@ def log(msg: str) -> None:
 
 
 def config() -> dict:
-    cfg = load_json(APP / "config.default.json", {}) or {}
-    user = load_json(COC_HOME / "config.json", {}) or {}
-    for k, v in user.items():  # one-level deep merge so new default keys still apply
-        cfg[k] = {**cfg[k], **v} if isinstance(v, dict) and isinstance(cfg.get(k), dict) else v
-    return cfg
+    """defaults <- strategy profile <- owner's config.json (see cocconf.py)."""
+    return cocconf.config()
 
 
 def notify(title: str, message: str) -> None:
@@ -341,18 +343,43 @@ def preflight(cfg: dict, manual: bool = False) -> tuple[bool, str, dt.timedelta]
 
 
 # ---------------------------------------------------------------- one run
-def build_prompt(run_id: str, trigger: str, sched: dict, review: bool, pres: dict | None) -> str:
+def first_run() -> bool:
+    """No onboarding survey yet: memory/base.json has no Town Hall level."""
+    base = load_json(COC_HOME / "memory" / "base.json", {}) or {}
+    return not base.get("town_hall")
+
+
+def weekly_review_due(cfg: dict, sched: dict, t: dt.datetime) -> bool:
+    last = parse_ts(sched.get("last_weekly_review_at"))
+    if last and t - last < dt.timedelta(days=6):
+        return False
+    day = str(cfg.get("weekly_review_weekday") or "Sunday").lower()
+    return t.strftime("%A").lower() == day or (last is not None and t - last >= dt.timedelta(days=8))
+
+
+def build_prompt(run_id: str, trigger: str, sched: dict, review: bool, pres: dict | None,
+                 weekly: bool = False) -> str:
     t = now()
     cfg = config()
     night = in_window(cfg.get("night_hours") or [], t)
+    profile = cfg.get("_profile")
     parts = [
         f"coc-agent run {run_id}. Local time {iso(t)} ({t.strftime('%A')}). Trigger: {trigger}.",
+        f"Strategy profile: {profile} (`./bin/coc direction` prints the owner's direction).",
         f"Plan you left for this wake-up: {sched.get('reason', 'none')}.",
         f"Night window: {'YES, until ' + night.strftime('%H:%M') + ' (owner asleep: prime time to farm and fill storages)' if night else 'no'}.",
     ]
     if pres:
         parts.append(f"Presence: at_home={pres.get('at_home')}, iphone_nearby={pres.get('iphone_nearby')}, mac_idle={pres.get('mac_idle_s')}s.")
-    if review:
+    if first_run():
+        parts.append("FIRST RUN on this account: do the ONBOARDING SURVEY from CLAUDE.md before anything else "
+                     "(Town Hall, builders, army, heroes; write base.json, upgrade_priorities.md, attack_playbook.md, strategy.md).")
+    if sched.get("last_profile") and sched.get("last_profile") != profile:
+        parts.append(f"The owner CHANGED the strategy profile from {sched['last_profile']} to {profile}: "
+                     "read `./bin/coc direction` and re-derive memory/strategy.md and upgrade_priorities.md from it this run.")
+    if weekly:
+        parts.append("WEEKLY REVIEW is due: do it from CLAUDE.md (coc progress --days 7, Town Hall decision, prune memory).")
+    elif review:
         parts.append("This is the first run of the day: do the DAILY REVIEW from CLAUDE.md (stats, availability, rewrite memory/strategy.md) before or after playing, whichever fits the time.")
     parts.append("Work through CLAUDE.md: read memory/strategy.md first, play, learn, update memory, then `./bin/coc finish ...` and stop.")
     return " ".join(parts)
@@ -375,6 +402,7 @@ def run_session(trigger: str, attach: bool = False) -> dict:
     cfg = config()
     sched = get_schedule()
     review = sched.get("last_review_date") != now().date().isoformat() and now().hour >= cfg.get("daily_review_after_hour", 4)
+    weekly = review and weekly_review_due(cfg, sched, now())
     try:
         pres = presence(cfg)
     except Exception:
@@ -395,7 +423,7 @@ def run_session(trigger: str, attach: bool = False) -> dict:
         cmd += ["--model", cfg["model"]]
     if cfg.get("effort"):
         cmd += ["--effort", cfg["effort"]]
-    cmd.append(build_prompt(run_id, trigger, sched, review, pres))
+    cmd.append(build_prompt(run_id, trigger, sched, review, pres, weekly))
 
     env = clean_env()
     env.update({
@@ -444,8 +472,14 @@ def run_session(trigger: str, attach: bool = False) -> dict:
            "agent_reason": (result or {}).get("reason", "")}
     append_jsonl(LOGS / "runs.jsonl", rec)
     log(f"run {run_id} ended: {outcome}, status={rec['status']}, {rec['minutes']} min")
-    if result and review and result.get("status") == "ok":
-        s = get_schedule(); s["last_review_date"] = now().date().isoformat(); write_json(SCHEDULE_FILE, s)
+    if result and result.get("status") == "ok":
+        s = get_schedule()
+        s["last_profile"] = cfg.get("_profile")
+        if review:
+            s["last_review_date"] = now().date().isoformat()
+        if weekly:
+            s["last_weekly_review_at"] = iso(now())
+        write_json(SCHEDULE_FILE, s)
     apply_result(result, run_id)
     return rec
 

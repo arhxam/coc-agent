@@ -34,6 +34,9 @@ launchd_loaded() { launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; }
 cmd_install() {
   [[ -f "$REPO/docs/overview.html" ]] || die "run install from the source checkout (e.g. <repo>/bin/cocctl install)"
   say "${c_bold}Installing coc-agent into $COC_HOME${c_off}"
+  warn "Unofficial research project, not affiliated with Supercell, Anthropic or Apple. Educational use only."
+  warn "Automating Clash of Clans breaks Supercell's Terms of Service and can get your account banned."
+  warn "Use an account you're prepared to lose. You are responsible for how you use it (see README: Disclaimer)."
   command -v expect >/dev/null || die "expect not found (it ships with macOS at /usr/bin/expect)"
   command -v claude >/dev/null || [[ -x "$HOME/.local/bin/claude" ]] || die "claude CLI not found"
   mkdir -p "$COC_HOME"/{app,memory,state,logs/sessions,bin,.claude}
@@ -41,7 +44,7 @@ cmd_install() {
   rsync -a --delete --exclude '__pycache__' "$REPO/app/" "$APP/"
   cp "$REPO/app/CLAUDE.md" "$COC_HOME/CLAUDE.md"
   cp "$REPO/docs/overview.html" "$COC_HOME/overview.html"
-  chmod +x "$APP/run_session.exp" "$APP/scheduler.py" "$APP/tools/coc.py" "$APP/hooks/guard_apps.py"
+  chmod +x "$APP/run_session.exp" "$APP/scheduler.py" "$APP/tools/coc.py" "$APP/tools/cocsetup.py" "$APP/hooks/guard_apps.py"
   ok "app files copied"
 
   if [[ "${1:-}" == "--reseed-memory" && -d "$COC_HOME/memory" ]]; then
@@ -55,9 +58,12 @@ cmd_install() {
   done
   ok "memory: $seeded new file(s) seeded, existing memory kept"
 
+  local fresh=0
   if [[ ! -f "$COC_HOME/config.json" ]]; then
-    cp "$APP/config.default.json" "$COC_HOME/config.json"; ok "config.json created (edit it to tune behaviour)"
+    printf '{\n  "strategy": {"profile": "max-out"}\n}\n' > "$COC_HOME/config.json"
+    fresh=1; ok "config.json created with only your own settings (defaults + profile fill in the rest)"
   else
+    "$PY" "$APP/tools/cocsetup.py" migrate
     ok "config.json kept (new defaults still apply via app/config.default.json)"
   fi
 
@@ -115,7 +121,11 @@ PYEOF
   cp "$REPO/bin/cocctl" "$COC_HOME/bin/cocctl"; chmod +x "$COC_HOME/bin/cocctl"
   mkdir -p "$HOME/.local/bin" && ln -sf "$COC_HOME/bin/cocctl" "$HOME/.local/bin/cocctl"
   ok "cocctl installed at $COC_HOME/bin/cocctl (linked into ~/.local/bin)"
-  ok "done. Next:  cocctl doctor   then   cocctl run-now --attach"
+  if [[ $fresh == 1 && -t 0 ]]; then
+    say ""; say "${c_bold}Quick setup${c_off} (re-run any time with: cocctl setup)"
+    "$PY" "$APP/tools/cocsetup.py" setup || true
+  fi
+  ok "done. Next:  cocctl setup (pick a strategy)   cocctl doctor   then   cocctl run-now --attach"
   if launchd_loaded; then write_plist; warn "autostart is on; restart to pick up new code: cocctl restart"; fi
 }
 
@@ -290,8 +300,16 @@ cmd_status() {
   fi
   [[ -f "$STATE/PAUSED" ]] && warn "PAUSED (cocctl resume)"
   "$PY" - <<'PYEOF'
-import json, os, datetime as dt
+import json, os, sys, datetime as dt
 h = os.environ["COC_HOME"]
+sys.path.insert(0, os.path.join(h, "app"))
+try:
+    import cocconf
+    _c = cocconf.config()
+    print(f"strategy profile: \033[1m{_c.get('_profile')}\033[0m" + (f"  ({_c['_profile_error']})" if _c.get("_profile_error") else "")
+          + (f"   notes: {len((_c.get('strategy') or {}).get('notes') or [])}" if (_c.get('strategy') or {}).get('notes') else ""))
+except Exception as e:
+    print("strategy profile: ? (", e, ")")
 def j(p):
     try: return json.load(open(os.path.join(h, p)))
     except Exception: return None
@@ -396,6 +414,7 @@ try:
 except FileNotFoundError:
     print("\033[32m✓\033[0m computer-use lock is free")
 PYEOF
+  [[ -f "$APP/tools/cocsetup.py" ]] && "$PY" "$APP/tools/cocsetup.py" validate || true
   [[ -f "$APP/scheduler.py" ]] && { say "preflight right now:"; "$PY" "$APP/scheduler.py" preflight; }
   say "${c_dim}One-time macOS setup: iPhone Mirroring paired and working; Mac stays unlocked/awake while runs are due;"
   say "Screen Recording + Accessibility granted to the app that launches the scheduler (your terminal, or python3 for autostart).${c_off}"
@@ -412,7 +431,13 @@ usage() {
 ${c_bold}cocctl${c_off} - autonomous Clash of Clans agent (Claude Code + iPhone Mirroring)
 
   install [--reseed-memory]  copy app to $COC_HOME, seed memory, detect home/iPhone, configure Claude Code
-  doctor                  check everything needed for unattended runs
+  setup [--profile NAME]  guided setup: strategy profile, night window, what the agent may do
+  doctor                  check everything needed for unattended runs (incl. config validation)
+
+  profile list|show|set   strategy profiles (max-out, fast-progress, war-ready, trophy-push, endgame, frugal)
+  config show|get|set|unset KEY [VALUE]   read/change settings with dotted keys (game_limits.use_gems false)
+  note "text"             add your own direction for the agent (e.g. "Queen before King")
+  direction               exactly what the agent reads as your direction
   start | stop | restart  background scheduler (survives closing the terminal)
   autostart on|off        run via launchd: starts at login, auto-restarts
   status                  scheduler state, next run + why, base timers, recent runs
@@ -422,6 +447,9 @@ ${c_bold}cocctl${c_off} - autonomous Clash of Clans agent (Claude Code + iPhone 
   presence                what the Mac senses now (home network, iPhone nearby, idle, night)
   home-here               mark the current network as home too
   stats [--days N]        what the agent has achieved (attacks, loot, walls, idle builders)
+  progress [--days N]     day-by-day trend: builder/lab utilisation, upgrades, walls, loot, Town Hall, trophies
+  today                   today's attacks / walls / runs against your daily caps
+  experiments             the agent's open experiment and its measured effect
   availability            learned hours when runs can actually happen
   strategy                print the agent's current living strategy
   logs [-f|N]             scheduler log
@@ -443,6 +471,14 @@ case "${1:-}" in
   presence)   need_install; "$PY" "$APP/scheduler.py" presence ;;
   home-here)  cmd_home_here ;;
   stats)      shift; need_install; "$COC_HOME/bin/coc" stats "$@" ;;
+  progress)   shift; need_install; "$COC_HOME/bin/coc" progress "$@" ;;
+  today)      need_install; "$COC_HOME/bin/coc" today ;;
+  experiments) need_install; "$COC_HOME/bin/coc" experiment status ;;
+  direction)  need_install; "$COC_HOME/bin/coc" direction ;;
+  setup)      shift; need_install; "$PY" "$APP/tools/cocsetup.py" setup "$@" ;;
+  profile|profiles) shift; need_install; "$PY" "$APP/tools/cocsetup.py" profile "$@" ;;
+  config)     shift; need_install; "$PY" "$APP/tools/cocsetup.py" config "$@" ;;
+  note)       shift; need_install; "$PY" "$APP/tools/cocsetup.py" note "$@" ;;
   availability) shift; need_install; "$COC_HOME/bin/coc" availability "$@" ;;
   strategy)   need_install; cat "$COC_HOME/memory/strategy.md" ;;
   pause)      cmd_pause ;;
