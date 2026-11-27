@@ -66,6 +66,14 @@ upgrade starts immediately. **No builder should ever sit idle waiting for loot.*
 - After the battle: `./bin/coc log attack '{"strategy":"zap-dragon-v1","opponent_th":13,"stars":1,"destruction":72,"loot":{"gold":1792402,"elixir":1730837,"de":14560},"loot_wasted":false,"nexts":3,"notes":"..."}'`
 - Re-train the army if needed (Quick Train, no gem boosts) and store `army.ready_at` in base.json. In this game version the army is ready again right after a battle, so **the number of attacks per run is the farming limit**. When storages are far below target, especially at night, use more attacks (tune `attacks_per_run` up to the hard limit) rather than waiting for later runs.
 
+### Builder Base (only when `coc config` shows `game_limits.do_builder_base: true`)
+- Get there by boat: tap the boat at the home village's edge (pan if needed), then "Go to Builder Base". Return the same way. Record where the boat and buttons are in `memory/ui_map.md`.
+- On arrival: collect the Gold Mine / Elixir Collector / Gem Mine, then the Elixir Cart.
+- Keep every Builder Base builder (and the Master Builder / O.T.T.O.) busy on the longest affordable upgrade, and keep the Star Laboratory busy. The same no-gems / confirm-icon rule applies.
+- Builder Base battles (versus attacks) are cheap loot: do them up to the daily loot-bonus limit when the troops are ready. Deploy along one side, then use hero (Battle Machine / Battle Copter) abilities.
+- Log jobs with `./bin/coc log upgrade '{"target":"BB: ...", ...}'` and attacks with `"strategy":"bb-..."`, so the stats stay separate. Keep notes in `memory/builder_base.md`.
+- Home village farming still comes first when its storages are low. Budget ~10 min for the Builder Base per run.
+
 ## Choosing the next wake-up (timing matters a lot)
 Run `./bin/coc suggest-wake` (add `--need-loot` if storages are below target). Then decide:
 - **Never let a builder or the lab sit idle**: wake at the earliest free time + ~2 min, *if the system can likely run then*. If that time is in a daytime hour where the owner is usually busy, wake at the next likely-runnable time and set `--opportunistic-after` to the free time.

@@ -138,8 +138,10 @@ while {$outcome eq ""} {
         continue
     }
 
-    # The access dialog: "Computer Use wants to control these apps ... ◉ iPhone Mirroring ... ❯ Deny ... Allow for this session"
-    if {$auto_approve && [string match {*allowforthissession*} $flat] && [string match {*wantstocontrol*} $flat]
+    # The access dialog (wording varies by Claude Code version):
+    #   <=2.1.32x: "Computer Use wants to control these apps ... ◉ iPhone Mirroring ... ❯ Deny ... Allow for this session"
+    #   2.1.33x:   "Claude wants to use iPhone Mirroring ... ◉ iPhone Mirroring (full access) ... ❯ Deny ... Allow for this session"
+    if {$auto_approve && [string match {*allowforthissession*} $flat] && ([string match {*wantstocontrol*} $flat] || [string match {*wantstouse*} $flat])
         && [string match {*iphonemirroring*} $flat] && ($now - $last_approve) > 6} {
         if {$approvals >= 3} {
             event "access prompt appeared again after 3 approvals - giving up"
