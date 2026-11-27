@@ -16,6 +16,11 @@
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
+> [!WARNING]
+> **Unofficial research project, for educational purposes only.** coc-agent is an experiment in what an AI agent can do with computer use. It is not a product, a service or a cheat tool, and it is not affiliated with, endorsed by or sponsored by Supercell, Anthropic or Apple.
+>
+> **Running it breaks Supercell's [Terms of Service](https://supercell.com/en/terms-of-service/), which forbid bots and automation. Your account can be suspended or permanently banned.** Only run it on an account you are prepared to lose. You alone are responsible for how you use it. See the [full disclaimer](#disclaimer).
+
 <p align="center"><img src="docs/images/hero.jpg" alt="Real screenshot: Claude attacking with Electro Dragons through iPhone Mirroring, with its own narration" width="100%"></p>
 
 ---
@@ -147,7 +152,7 @@ Config lives in `~/.coc-agent/config.json`. Set `game_limits.do_builder_base` to
 
 ## Limits and risks
 
-- ⚠️ **Automating Clash of Clans is against Supercell's Terms of Service.** Your account can be banned. Use it on an account you're willing to lose. This is an experiment in agentic computer use, not a cheat tool.
+- ⚠️ **Automating Clash of Clans is against Supercell's Terms of Service.** Your account can be banned, no matter how human the taps look. Use it on an account you're willing to lose. This is an experiment in agentic computer use, not a cheat tool. See the [disclaimer](#disclaimer).
 - It's slow and uses a lot of tokens: each run is many screenshots. On a Claude subscription that's plan usage. Lower it with fewer attacks per run, a cheaper `model`, or a longer `min_interval_minutes`.
 - It only runs when the Mac is awake and unlocked, the lid is open, and the phone is reachable. In practice access, not loot, turned out to be the bottleneck (the agent worked this out itself, see the strategy screenshot above).
 - Claude Code updates can change the wording of the computer-use access prompt. `run_session.exp` matches both known wordings. If runs start hanging at the prompt, check `logs/sessions/*.tty.log`.
@@ -155,7 +160,17 @@ Config lives in `~/.coc-agent/config.json`. Set `game_limits.do_builder_base` to
 
 ## Disclaimer
 
-This material is unofficial and is not endorsed by Supercell. For more information see Supercell's Fan Content Policy: [www.supercell.com/fan-content-policy](https://www.supercell.com/fan-content-policy). Clash of Clans is a trademark of Supercell Oy. The game screenshots are from my own account's gameplay. Not affiliated with Anthropic or Apple.
+**Educational and research use only.** This project shows how an AI agent can operate a real app through macOS computer use: reading the screen, planning, acting and learning from results. It is published so people can study and learn from that. It is not meant to give anyone an advantage in the game, and it is not a commercial product.
+
+**Not affiliated.** coc-agent is an independent, unofficial project. It is not affiliated with, endorsed by, sponsored by or approved by Supercell Oy. Clash of Clans and its names, logos, art and characters are trademarks and copyrighted material of Supercell Oy. They are used here only to identify the game and describe what the project does. This material is unofficial and is not endorsed by Supercell. For more information see Supercell's Fan Content Policy: [www.supercell.com/fan-content-policy](https://www.supercell.com/fan-content-policy). The game screenshots are from my own account's gameplay, with other players' names blurred. Claude and Claude Code are trademarks of Anthropic, and iPhone, iPhone Mirroring and macOS are trademarks of Apple Inc. coc-agent is not affiliated with or endorsed by Anthropic or Apple.
+
+**Against the game's rules.** Supercell's [Terms of Service](https://supercell.com/en/terms-of-service/) prohibit bots, automation and unauthorized third-party software. Using this project with a Clash of Clans account violates those terms and can get the account suspended or permanently banned. If you run it, you accept that risk and are responsible for complying with every agreement that applies to you, including Supercell's, Apple's and Anthropic's terms.
+
+**What it doesn't do.** It doesn't modify, decompile or inject code into the game, read its memory, intercept its network traffic or get around any anti-cheat or security measure. It only sees and taps the screen through iPhone Mirroring, the way a person would. Please don't fork it to add any of those things or to dodge detection, and don't sell it, rent it out or offer it as a service.
+
+**No warranty.** The software is provided "as is", without warranty of any kind, as stated in the [MIT License](LICENSE). The authors aren't liable for banned or lost accounts, lost progress or in-game items, spent resources, usage costs on your Claude plan, or any other damage from using it.
+
+**Rights holders.** If you represent Supercell or another rights holder and want something changed or removed, please [open an issue](https://github.com/arhxam/coc-agent/issues) and I'll respond promptly.
 
 ## License
 

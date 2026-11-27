@@ -46,6 +46,7 @@
   nav{display:flex;flex-wrap:wrap;gap:6px;margin:22px 0 0}
   nav a{color:var(--muted);text-decoration:none;font-size:13px;border:1px solid var(--line);border-radius:99px;padding:4px 11px}
   nav a:hover{color:var(--text);border-color:var(--muted)}
+  a{color:var(--blue)}
   .kbd{font:12px "SF Mono",monospace;background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
 </style>
 </head>
@@ -54,9 +55,10 @@
   <span class="pill tag-gold">local</span><span class="pill tag-el">Claude Code + computer use</span><span class="pill tag-dk">iPhone Mirroring</span>
   <h1>coc-agent</h1>
   <p class="sub">A local system that plays Clash of Clans on your iPhone through iPhone Mirroring. It <b>banks loot</b> so a freed builder can start right away, upgrades walls on their own track, does most of its work <b>at night and while you're idle</b>, and <b>rewrites its own strategy</b> as it learns.</p>
+  <div class="card warn" style="margin-top:20px"><h4>Unofficial research project, for educational purposes only</h4><p>coc-agent is an experiment in AI computer use. It is not affiliated with, endorsed by or sponsored by Supercell, Anthropic or Apple. <b>Supercell's <a href="https://supercell.com/en/terms-of-service/">Terms of Service</a> forbid bots and automation, so running it can get your account suspended or permanently banned.</b> Only use an account you're prepared to lose. You are responsible for how you use it. See the <a href="#disclaimer">disclaimer</a>.</p></div>
   <nav>
     <a href="#quick">Quick start</a><a href="#arch">Architecture</a><a href="#run">A single run</a><a href="#timing">Timing</a>
-    <a href="#strategy">Strategy</a><a href="#learning">Learning loop</a><a href="#memory">Memory</a><a href="#safety">Safety rails</a><a href="#cmds">Commands</a><a href="#config">Config</a><a href="#limits">Limits &amp; risks</a>
+    <a href="#strategy">Strategy</a><a href="#learning">Learning loop</a><a href="#memory">Memory</a><a href="#safety">Safety rails</a><a href="#cmds">Commands</a><a href="#config">Config</a><a href="#limits">Limits &amp; risks</a><a href="#disclaimer">Disclaimer</a>
   </nav>
 
   <h2 id="quick">Quick start</h2>
@@ -294,13 +296,20 @@ cocctl autostart on                                   cocctl autostart off</code
 
   <h2 id="limits">Limits &amp; risks (read these)</h2>
   <div class="grid g2">
-    <div class="card warn"><h4>Account risk</h4><p>Supercell's Terms of Service ban bots and automation. Accounts can be suspended or banned. Since this goes through the real phone UI it looks like a human, but the ToS doesn't care how it's done. Use it knowing that.</p></div>
+    <div class="card warn"><h4>Account risk</h4><p>Supercell's Terms of Service ban bots and automation. Accounts can be suspended or banned. Since this goes through the real phone UI it looks like a human, but the ToS doesn't care how it's done. Use it only on an account you're prepared to lose.</p></div>
     <div class="card warn"><h4>The Mac must be awake, unlocked &amp; plugged in at night</h4><p>Computer use can't act on a locked screen. The scheduler's <code>caffeinate</code> stops sleep and auto-lock during the night window, but <b>only if the Mac is unlocked when the window starts</b>. Leave it open, plugged in, with the brightness down. The battery guard skips runs below 20% unplugged. Leaving the Mac unlocked overnight is a physical-security trade-off.</p></div>
     <div class="card note"><h4>macOS permissions</h4><p>Screen Recording and Accessibility belong to the app that launches Claude. With <code>cocctl start</code> from a terminal that already ran computer use, it inherits that grant. With <code>autostart</code>, macOS may ask again for <code>python3</code>. The run then ends with <code>needs_human</code> until you grant it.</p></div>
     <div class="card note"><h4>Usage cost</h4><p>One manual attack used ~2.0M input-side tokens (mostly cache reads) and ~9.5k output tokens over 27 requests. A full run with upgrades and 1 to 3 attacks will be roughly 1 to 4× that. On a Claude subscription that's plan usage, not dollars. Lower it with <code>max_attacks_per_run</code>, a cheaper <code>model</code>, or a higher <code>min_interval_minutes</code>.</p></div>
     <div class="card note"><h4>One computer-use session at a time</h4><p>Any other Claude Code session that used computer use holds the lock until it exits. The scheduler waits (+15 min) instead of failing. <code>cocctl doctor</code> shows who holds it.</p></div>
     <div class="card ok"><h4>Verified on 2026-11-13</h4><p>The first real run worked end to end. The driver picked Allow on the access prompt (Down, Enter), the agent opened CoC through iPhone Mirroring, started a Blacksmith upgrade, did 2 farming attacks (+737k gold, +1.14M elixir), filled in base.json, and scheduled its own next runs.</p></div>
   </div>
+  <h2 id="disclaimer">Disclaimer</h2>
+  <p><b>Educational and research use only.</b> This project shows how an AI agent can operate a real app through macOS computer use. It is published so people can study it, not to give anyone an advantage in the game, and it is not a commercial product.</p>
+  <p><b>Not affiliated.</b> coc-agent is an independent, unofficial project, not affiliated with, endorsed by, sponsored by or approved by Supercell Oy. Clash of Clans and its names, logos, art and characters are trademarks and copyrighted material of Supercell Oy, used here only to identify the game. This material is unofficial and is not endorsed by Supercell. For more information see Supercell's <a href="https://www.supercell.com/fan-content-policy">Fan Content Policy</a>. Claude and Claude Code are trademarks of Anthropic, and iPhone, iPhone Mirroring and macOS are trademarks of Apple Inc. Neither company is affiliated with or endorses this project.</p>
+  <p><b>Against the game's rules.</b> Supercell's <a href="https://supercell.com/en/terms-of-service/">Terms of Service</a> prohibit bots, automation and unauthorized third-party software. Using this project with an account violates those terms and can get it suspended or permanently banned. If you run it, you accept that risk and are responsible for following every agreement that applies to you.</p>
+  <p><b>What it doesn't do.</b> It doesn't modify or inject code into the game, read its memory, intercept its network traffic or get around any anti-cheat or security measure. It only sees and taps the screen through iPhone Mirroring. Please don't extend it to do any of those things or to dodge detection, and don't sell it or offer it as a service.</p>
+  <p><b>No warranty.</b> Provided "as is" under the MIT License, without warranty of any kind. The authors aren't liable for banned or lost accounts, lost progress, spent resources, usage costs or any other damage from using it.</p>
+
   <p class="c" style="margin-top:40px">coc-agent · files in repo: <code>bin/cocctl</code>, <code>app/scheduler.py</code>, <code>app/run_session.exp</code>, <code>app/CLAUDE.md</code>, <code>app/tools/coc.py</code>, <code>app/hooks/guard_apps.py</code>, <code>app/memory_seed/*</code> (incl. strategy.md, walls.md, tuning.json), <code>app/config.default.json</code></p>
 </main>
 </body>

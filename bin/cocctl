@@ -34,6 +34,9 @@ launchd_loaded() { launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; }
 cmd_install() {
   [[ -f "$REPO/docs/overview.html" ]] || die "run install from the source checkout (e.g. <repo>/bin/cocctl install)"
   say "${c_bold}Installing coc-agent into $COC_HOME${c_off}"
+  warn "Unofficial research project, not affiliated with Supercell, Anthropic or Apple. Educational use only."
+  warn "Automating Clash of Clans breaks Supercell's Terms of Service and can get your account banned."
+  warn "Use an account you're prepared to lose. You are responsible for how you use it (see README: Disclaimer)."
   command -v expect >/dev/null || die "expect not found (it ships with macOS at /usr/bin/expect)"
   command -v claude >/dev/null || [[ -x "$HOME/.local/bin/claude" ]] || die "claude CLI not found"
   mkdir -p "$COC_HOME"/{app,memory,state,logs/sessions,bin,.claude}
