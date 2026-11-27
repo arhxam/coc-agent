@@ -4,6 +4,13 @@
   "effort": "",
   "permission_mode": "dontAsk",
 
+  "strategy": {
+    "_note": "Pick how the agent plays: cocctl profile list / cocctl profile set <name>. notes = your own extra direction, in plain words.",
+    "profile": "max-out",
+    "attack_style": "auto",
+    "notes": []
+  },
+
   "defer_minutes": 30,
   "defer_minutes_mac_busy": 30,
   "defer_minutes_cu_lock_busy": 15,
@@ -37,6 +44,8 @@
   "max_runs_per_day": 36,
   "min_battery_percent": 20,
   "daily_review_after_hour": 4,
+  "weekly_review_weekday": "Sunday",
+  "notify_blocked_after_hours": 2,
 
   "notify": true,
   "allowed_apps": ["iPhone Mirroring"],
@@ -49,8 +58,14 @@
     "max_attacks_per_run": 5,
     "max_next_per_attack": 20,
     "max_walls_per_run": 15,
+    "max_attacks_per_day": 60,
+    "allow_town_hall_upgrade": true,
+    "allow_new_buildings": true,
+    "use_magic_items": false,
+    "use_hero_equipment_ore": true,
     "donate_to_clan": false,
-    "do_builder_base": false
+    "do_builder_base": false,
+    "do_clan_capital": false
   },
 
   "game": {

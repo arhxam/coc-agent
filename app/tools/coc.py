@@ -12,15 +12,24 @@ run result the scheduler reads.
     coc timers                       builder / lab / army timers recorded in memory/base.json
     coc suggest-wake [--need-loot]   next-wake candidates (timers + night window + availability)
     coc availability [--days 14]     when the system can actually run, learned from presence samples
+  direction
+    coc direction                    the owner's direction: active strategy profile + their own notes
+    coc config                       current game knobs (defaults + profile + your tuning, clamped to limits)
+    coc today                        today's attacks / walls / runs against the owner's daily caps
   learning
     coc stats [--days 3]             runs, attacks, loot/attack, walls/day, storage fill, idle builders
-    coc config                       current game knobs (defaults + your tuning, clamped to limits)
-    coc tune <key> <value> --why ".."   change a knob in memory/tuning.json (logged)
+    coc progress [--days 14]         day-by-day trend: builder/lab utilisation, upgrades, walls, loot, TH, trophies
+    coc tune <key> <value> --why ".."   change a knob in memory/tuning.json (logged, scoped to the profile)
+    coc experiment start <name> --hypothesis ".." [--metric loot|stars|destruction|nexts|trophies] [--strategy TAG]
+    coc experiment status            the open experiment: metric since start vs the same number of attacks before
+    coc experiment end --result keep|revert [--notes ".."]
     coc log <kind> '<json>'          kinds: attack upgrade research wall snapshot experiment event
   end of run
     coc finish --status ok --next "+2h10m" --reason "..." --summary "..."
                [--opportunistic-after "+40m" --opportunistic-why "army ready, storages 70%"]
 """
+from __future__ import annotations
+
 import argparse
 import collections
 import datetime as dt
@@ -29,6 +38,9 @@ import os
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import cocconf  # noqa: E402  (app/cocconf.py)
 
 COC_HOME = Path(os.environ.get("COC_HOME", Path.home() / ".coc-agent"))
 STATE = COC_HOME / "state"
@@ -45,8 +57,8 @@ VALID_STATUS = {
     "error",            # anything else went wrong
 }
 LOG_KINDS = {"attack", "upgrade", "research", "wall", "snapshot", "experiment", "event"}
-LIMIT_FOR = {"attacks_per_run": "max_attacks_per_run", "next_per_attack": "max_next_per_attack",
-             "walls_per_run": "max_walls_per_run"}
+LIMIT_FOR = cocconf.LIMIT_FOR
+METRICS = ("loot", "stars", "destruction", "nexts", "trophies")
 
 
 # ---------------------------------------------------------------- basics
@@ -137,25 +149,28 @@ def fmt_left(delta: dt.timedelta) -> str:
 
 
 def full_config() -> dict:
-    cfg = load_json(COC_HOME / "app" / "config.default.json", {}) or {}
-    user = load_json(COC_HOME / "config.json", {}) or {}
-    for k, v in user.items():
-        cfg[k] = {**cfg[k], **v} if isinstance(v, dict) and isinstance(cfg.get(k), dict) else v
-    return cfg
+    return cocconf.config()
 
 
-def game_knobs() -> tuple[dict, dict]:
-    """(knobs, limits): config 'game' defaults overlaid with memory/tuning.json, clamped to game_limits."""
-    cfg = full_config()
+def game_knobs(cfg: dict | None = None) -> tuple[dict, dict, dict]:
+    """(knobs, limits, ignored): config 'game' (defaults + profile + owner) overlaid with memory/tuning.json,
+    clamped to game_limits. Tuning made under a different profile is ignored (and returned in `ignored`),
+    so switching profile gives that profile's starting values back."""
+    cfg = cfg or full_config()
+    profile = cfg.get("_profile")
     limits = {k: v for k, v in (cfg.get("game_limits") or {}).items() if not k.startswith("_")}
     knobs = {k: v for k, v in (cfg.get("game") or {}).items() if not k.startswith("_")}
     tuning = load_json(MEMORY / "tuning.json", {}) or {}
+    ignored = {}
     for k, v in (tuning.get("knobs") or {}).items():
+        if isinstance(v, dict) and v.get("profile") and v.get("profile") != profile:
+            ignored[k] = v
+            continue
         knobs[k] = v.get("value") if isinstance(v, dict) else v
     for k, lim in LIMIT_FOR.items():
         if k in knobs and lim in limits and isinstance(knobs[k], (int, float)):
             knobs[k] = min(knobs[k], limits[lim])
-    return knobs, limits
+    return knobs, limits, ignored
 
 
 def window_end(windows, t: dt.datetime):
@@ -324,6 +339,8 @@ def cmd_stats(a):
     print(f"== last {a.days} day(s) ==")
     print(f"runs: {len(runs)}  {dict(st)}  avg {sum(r.get('minutes') or 0 for r in runs) / max(len(runs), 1):.1f} min; deferred {len(deferred)}: "
           f"{dict(collections.Counter((r.get('reason') or '').split('(')[0].strip() for r in deferred).most_common(4))}")
+    bb_attacks = [x for x in attacks if str(x.get("strategy", "")).startswith("bb")]
+    attacks = [x for x in attacks if not str(x.get("strategy", "")).startswith("bb")]
     if attacks:
         g = [num((x.get("loot") or {}).get("gold")) for x in attacks]
         e = [num((x.get("loot") or {}).get("elixir")) for x in attacks]
@@ -340,8 +357,13 @@ def cmd_stats(a):
             strat[x.get("strategy", "?")].append(num((x.get("loot") or {}).get("gold")) + num((x.get("loot") or {}).get("elixir")))
         for k, v in strat.items():
             print(f"  strategy {k!r}: {len(v)} attacks, avg gold+elixir {sum(v)/len(v):,.0f}")
+        tro = [num(x.get("trophies")) for x in attacks if x.get("trophies") is not None]
+        if tro:
+            print(f"  trophies: {sum(tro):+.0f} over {len(tro)} logged attacks")
     else:
         print("attacks: 0")
+    if bb_attacks:
+        print(f"builder base attacks: {len(bb_attacks)}  avg stars {sum(num(x.get('stars')) for x in bb_attacks)/len(bb_attacks):.1f}")
     print(f"upgrades started: {len(upgrades)}   research started: {len(research)}")
     today = t.date().isoformat()
     walls_today = sum(int(num(w.get("count", 1))) for w in walls if w["_t"].date().isoformat() == today)
@@ -364,16 +386,233 @@ def cmd_stats(a):
     if exps:
         print("experiments:")
         for x in exps[-5:]:
-            print(f"  {x['_t'].strftime('%m-%d %H:%M')} {x.get('name', '?')}: {x.get('status', '')} {x.get('result', '')}")
+            detail = x.get("hypothesis") if x.get("status") == "started" else (x.get("notes") or x.get("result") or "")
+            print(f"  {x['_t'].strftime('%m-%d %H:%M')} {x.get('name', '?')}: {x.get('status', '')}  {detail}")
+
+
+def _num(x):
+    try:
+        return float(str(x).replace(",", ""))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def cmd_progress(a):
+    """Is the account actually getting better? One row per day."""
+    t = now()
+    since = (t - dt.timedelta(days=a.days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    base = load_json(MEMORY / "base.json", {}) or {}
+    default_total = (base.get("builders") or {}).get("total")
+    snaps = read_jsonl(LOGS / "snapshots.jsonl", since)
+    per = collections.defaultdict(lambda: collections.defaultdict(float))
+    for s in snaps:
+        d = per[s["_t"].date()]
+        d["snaps"] += 1
+        total = _num(s.get("builders_total") or default_total)
+        if total:
+            d["busy_sum"] += max(0.0, 1 - _num(s.get("builders_idle")) / total)
+            d["busy_n"] += 1
+        if s.get("lab_idle") is not None:
+            d["lab_busy"] += 0 if s.get("lab_idle") else 1
+            d["lab_n"] += 1
+        d["blocked"] += 1 if s.get("blocked_by_loot") else 0
+        for res in ("gold", "elixir"):
+            cap = _num((s.get("caps") or {}).get(res))
+            if cap:
+                d["fill_sum"] += _num(s.get(res)) / cap
+                d["fill_n"] += 1
+    for kind, key in (("upgrades", "upg"), ("researchs", "res")):
+        for r in read_jsonl(LOGS / f"{kind}.jsonl", since):
+            per[r["_t"].date()][key] += 1
+    for w in read_jsonl(LOGS / "walls.jsonl", since):
+        per[w["_t"].date()]["walls"] += _num(w.get("count", 1)) or 1
+    for x in read_jsonl(LOGS / "attacks.jsonl", since):
+        if str(x.get("strategy", "")).startswith("bb"):
+            continue
+        d = per[x["_t"].date()]
+        d["att"] += 1
+        d["loot"] += _num((x.get("loot") or {}).get("gold")) + _num((x.get("loot") or {}).get("elixir"))
+        d["tro"] += _num(x.get("trophies"))
+
+    def pct(sum_, n):
+        return f"{100 * sum_ / n:3.0f}%" if n else "   -"
+
+    print(f"== progress, last {a.days} day(s) ==   (builders/lab = share busy at run start; aim for 100%)")
+    print("day         runs builders lab  blocked fill  upgrades research walls attacks avg_loot   trophies")
+    for i in range(a.days):
+        day = (since + dt.timedelta(days=i)).date()
+        d = per.get(day)
+        if not d:
+            print(f"{day}  (no data)")
+            continue
+        avg = d["loot"] / d["att"] if d["att"] else 0
+        print(f"{day}  {int(d['snaps']):>4} {pct(d['busy_sum'], d['busy_n']):>8} {pct(d['lab_busy'], d['lab_n']):>4} "
+              f"{int(d['blocked']):>7} {pct(d['fill_sum'], d['fill_n']):>4} {int(d['upg']):>9} {int(d['res']):>8} "
+              f"{int(d['walls']):>5} {int(d['att']):>7} {avg:>10,.0f} {d['tro']:>+9.0f}")
+    th = [(s["_t"], s.get("town_hall")) for s in snaps if s.get("town_hall")]
+    if len(th) >= 2 and th[0][1] != th[-1][1]:
+        print(f"Town Hall: {th[0][1]} -> {th[-1][1]}")
+    elif base.get("town_hall"):
+        print(f"Town Hall: {base.get('town_hall')} (from memory/base.json)")
+    tro = [(s.get("trophies")) for s in snaps if s.get("trophies") is not None]
+    if len(tro) >= 2:
+        print(f"Trophies at run start: {tro[0]} -> {tro[-1]}")
+    if not snaps:
+        print("(no snapshots yet: log one every run with `coc log snapshot`, including builders_total, town_hall, trophies)")
+
+
+def _experiments():
+    """(open_experiment_or_None, all_records)"""
+    recs = read_jsonl(LOGS / "experiments.jsonl")
+    open_ = None
+    for r in recs:
+        st = r.get("status")
+        if st == "started":
+            open_ = r
+        elif st in ("ended", "kept", "reverted") and open_ and r.get("name") in (open_.get("name"), None):
+            open_ = None
+    return open_, recs
+
+
+def _metric(x, metric):
+    if metric == "loot":
+        return _num((x.get("loot") or {}).get("gold")) + _num((x.get("loot") or {}).get("elixir"))
+    return _num(x.get(metric))
+
+
+def cmd_experiment(a):
+    open_, _ = _experiments()
+    path = LOGS / "experiments.jsonl"
+    LOGS.mkdir(parents=True, exist_ok=True)
+    if a.action == "start":
+        if not a.name or not a.hypothesis:
+            sys.exit("usage: coc experiment start <name> --hypothesis '...' [--metric loot] [--strategy TAG]")
+        if open_:
+            sys.exit(f"experiment {open_.get('name')!r} is still open (started {open_.get('ts')}). "
+                     "One at a time: `coc experiment end --result keep|revert` first.")
+        if a.metric not in METRICS:
+            sys.exit(f"--metric must be one of {METRICS}")
+        rec = {"ts": iso(now()), "run_id": RUN_ID, "name": a.name, "hypothesis": a.hypothesis, "metric": a.metric,
+               "strategy": a.strategy, "status": "started", "profile": full_config().get("_profile"),
+               "attacks_offset": len(read_jsonl(LOGS / "attacks.jsonl"))}  # position, not clock: ts has 1 s resolution
+        with open(path, "a") as f:
+            f.write(json.dumps(rec) + "\n")
+        print(f"experiment {a.name!r} started; metric={a.metric}" + (f", attacks tagged {a.strategy!r}" if a.strategy else ""))
+        print("Tag the attacks it affects with that strategy name. Check with `coc experiment status`; aim for 5+ attacks before deciding.")
+        return
+    if not open_:
+        print("no open experiment")
+        return
+    started = parse_ts(open_.get("ts"))
+    metric = open_.get("metric") or "loot"
+    all_attacks = read_jsonl(LOGS / "attacks.jsonl")
+    off = open_.get("attacks_offset")
+    if isinstance(off, int):
+        before_all, after_all = all_attacks[:off], all_attacks[off:]
+    else:  # experiments logged with `coc log experiment`
+        before_all = [x for x in all_attacks if x["_t"] and x["_t"] < started]
+        after_all = [x for x in all_attacks if x["_t"] and x["_t"] >= started]
+
+    def home(xs):
+        return [x for x in xs if not str(x.get("strategy", "")).startswith("bb")]
+    after = home(after_all)
+    if open_.get("strategy"):
+        after = [x for x in after if x.get("strategy") == open_["strategy"]]
+    before = home(before_all)[-max(len(after), 5):]
+
+    def avg(xs):
+        return sum(_metric(x, metric) for x in xs) / len(xs) if xs else None
+    b, af = avg(before), avg(after)
+    summary = {"name": open_.get("name"), "hypothesis": open_.get("hypothesis"), "metric": metric,
+               "since": open_.get("ts"), "attacks_after": len(after), "avg_after": af,
+               "attacks_before": len(before), "avg_before": b,
+               "change_pct": round(100 * (af - b) / b, 1) if (af is not None and b) else None,
+               "enough_data": len(after) >= 5}
+    if a.action == "status":
+        print(json.dumps(summary, indent=2))
+        return
+    if a.action == "end":
+        if a.result not in ("keep", "revert"):
+            sys.exit("--result keep|revert is required")
+        rec = {"ts": iso(now()), "run_id": RUN_ID, "name": open_.get("name"),
+               "status": "kept" if a.result == "keep" else "reverted", "result": a.result, "notes": a.notes or "",
+               "measured": summary}
+        with open(path, "a") as f:
+            f.write(json.dumps(rec) + "\n")
+        print(json.dumps(rec, indent=2))
+        print("Now write the result into memory/strategy.md (Open experiment + changelog).")
 
 
 def cmd_config(_):
-    knobs, limits = game_knobs()
     cfg = full_config()
+    knobs, limits, ignored = game_knobs(cfg)
     tuning = load_json(MEMORY / "tuning.json", {}) or {}
-    print(json.dumps({"knobs": knobs, "hard_limits": limits, "night_hours": cfg.get("night_hours"),
-                      "tuned": {k: (v.get("why") if isinstance(v, dict) else "") for k, v in (tuning.get("knobs") or {}).items()}},
-                     indent=2))
+    strat = {k: v for k, v in (cfg.get("strategy") or {}).items() if not k.startswith("_")}
+    out = {"profile": cfg.get("_profile"), "strategy": strat, "knobs": knobs, "hard_limits": limits,
+           "night_hours": cfg.get("night_hours"),
+           "tuned": {k: (v.get("why") if isinstance(v, dict) else "") for k, v in (tuning.get("knobs") or {}).items()
+                     if k not in ignored}}
+    if ignored:
+        out["tuning_ignored_other_profile"] = {k: f"{v.get('value')} (tuned under {v.get('profile')})" for k, v in ignored.items()}
+    if cfg.get("_profile_error"):
+        out["profile_error"] = cfg["_profile_error"]
+    print(json.dumps(out, indent=2))
+
+
+def cmd_direction(_):
+    cfg = full_config()
+    name = cfg.get("_profile")
+    prof = cocconf.load_profile(name)
+    if not prof:
+        print(f"WARNING: {cfg.get('_profile_error')}. Falling back to {cocconf.DEFAULT_PROFILE}.\n")
+        prof = cocconf.load_profile(cocconf.DEFAULT_PROFILE) or {"direction": "", "summary": ""}
+    print(prof["direction"].rstrip())
+    strat = cfg.get("strategy") or {}
+    style = strat.get("attack_style") or "auto"
+    print(f"\n## Attack style\n- `{style}`" + (" (your choice: pick from app/knowledge/attacks.md for this army)" if style == "auto"
+                                               else " (the owner chose this recipe in app/knowledge/attacks.md; adapt details, keep the recipe)"))
+    notes = strat.get("notes") or []
+    if isinstance(notes, str):
+        notes = [notes]
+    extra = COC_HOME / "direction.md"
+    if notes or extra.exists():
+        print("\n## The owner's own notes (these override the profile where they conflict)")
+        for n in notes:
+            print(f"- {n}")
+        if extra.exists():
+            print(extra.read_text().rstrip())
+    flags = {k: v for k, v in (cfg.get("game_limits") or {}).items() if isinstance(v, bool)}
+    print("\n## Switches the owner set (game_limits)\n" + ", ".join(f"{k}={'on' if v else 'off'}" for k, v in flags.items()))
+
+
+def _today_counts():
+    t = now()
+    start = t.replace(hour=0, minute=0, second=0, microsecond=0)
+    attacks = read_jsonl(LOGS / "attacks.jsonl", start)
+    home = [x for x in attacks if not str(x.get("strategy", "")).startswith("bb")]
+    walls = read_jsonl(LOGS / "walls.jsonl", start)
+    runs = [r for r in read_jsonl(LOGS / "runs.jsonl", start, key="started_at") if r.get("status") != "deferred"]
+
+    def n(x):
+        try:
+            return int(float(x))
+        except (TypeError, ValueError):
+            return 1
+    return {"attacks_home": len(home), "attacks_builder_base": len(attacks) - len(home),
+            "walls": sum(n(w.get("count", 1)) for w in walls), "runs": len(runs)}
+
+
+def cmd_today(_):
+    cfg = full_config()
+    knobs, limits, _ = game_knobs(cfg)
+    c = _today_counts()
+    cap = limits.get("max_attacks_per_day")
+    out = {**c, "max_attacks_per_day": cap,
+           "attacks_left_today": (max(cap - c["attacks_home"], 0) if isinstance(cap, (int, float)) else None),
+           "walls_per_day_target": knobs.get("walls_per_day_target"),
+           "walls_left_for_target": max((knobs.get("walls_per_day_target") or 0) - c["walls"], 0),
+           "max_runs_per_day": cfg.get("max_runs_per_day")}
+    print(json.dumps(out, indent=2))
 
 
 def cmd_tune(a):
@@ -381,7 +620,8 @@ def cmd_tune(a):
         value = json.loads(a.value)
     except json.JSONDecodeError:
         value = a.value
-    _, limits = game_knobs()
+    cfg = full_config()
+    _, limits, _ = game_knobs(cfg)
     for k, lim in LIMIT_FOR.items():
         if a.key == k and isinstance(value, (int, float)) and lim in limits and value > limits[lim]:
             print(f"note: {k} capped at hard limit {limits[lim]}")
@@ -391,11 +631,12 @@ def cmd_tune(a):
     tuning = load_json(MEMORY / "tuning.json", {}) or {}
     knobs = tuning.setdefault("knobs", {})
     old = knobs.get(a.key, {}).get("value") if isinstance(knobs.get(a.key), dict) else knobs.get(a.key)
-    knobs[a.key] = {"value": value, "why": a.why, "at": iso(now())}
+    knobs[a.key] = {"value": value, "why": a.why, "at": iso(now()), "profile": cfg.get("_profile")}
     tuning["updated_at"] = iso(now())
     write_json(MEMORY / "tuning.json", tuning)
     with open(LOGS / "tuning.jsonl", "a") as f:
-        f.write(json.dumps({"ts": iso(now()), "run_id": RUN_ID, "key": a.key, "old": old, "new": value, "why": a.why}) + "\n")
+        f.write(json.dumps({"ts": iso(now()), "run_id": RUN_ID, "key": a.key, "old": old, "new": value, "why": a.why,
+                            "profile": cfg.get("_profile")}) + "\n")
     print(f"tuned {a.key}: {old} -> {value}")
 
 
@@ -411,6 +652,12 @@ def cmd_log(a):
     with open(LOGS / f"{a.kind}s.jsonl", "a") as f:
         f.write(json.dumps(rec) + "\n")
     print(f"logged {a.kind}")
+    if a.kind == "attack" and not str(payload.get("strategy", "")).startswith("bb"):
+        _, limits, _ = game_knobs()
+        cap = limits.get("max_attacks_per_day")
+        done = _today_counts()["attacks_home"]
+        if isinstance(cap, (int, float)) and done >= cap:
+            print(f"DAILY ATTACK CAP REACHED ({done}/{cap}, owner's max_attacks_per_day). No more home-village attacks today.")
 
 
 def cmd_finish(a):
@@ -451,6 +698,18 @@ def main():
     s = sub.add_parser("availability"); s.add_argument("--days", type=int, default=14); s.set_defaults(fn=cmd_availability)
     s = sub.add_parser("stats"); s.add_argument("--days", type=int, default=3); s.set_defaults(fn=cmd_stats)
     sub.add_parser("config").set_defaults(fn=cmd_config)
+    sub.add_parser("direction").set_defaults(fn=cmd_direction)
+    sub.add_parser("today").set_defaults(fn=cmd_today)
+    s = sub.add_parser("progress"); s.add_argument("--days", type=int, default=14); s.set_defaults(fn=cmd_progress)
+    s = sub.add_parser("experiment")
+    s.add_argument("action", choices=["start", "status", "end"])
+    s.add_argument("name", nargs="?")
+    s.add_argument("--hypothesis")
+    s.add_argument("--metric", default="loot")
+    s.add_argument("--strategy", default=None, help="attack strategy tag the experiment applies to")
+    s.add_argument("--result", choices=["keep", "revert"])
+    s.add_argument("--notes")
+    s.set_defaults(fn=cmd_experiment)
     s = sub.add_parser("tune"); s.add_argument("key"); s.add_argument("value"); s.add_argument("--why", required=True); s.set_defaults(fn=cmd_tune)
     s = sub.add_parser("log"); s.add_argument("kind"); s.add_argument("payload"); s.set_defaults(fn=cmd_log)
     s = sub.add_parser("finish")

@@ -1,0 +1,13 @@
+{
+  "summary": "Climb Town Halls quickly: offense and economy first, defenses only to keep builders busy, Town Hall as soon as the key offense is done.",
+  "best_for": "Fresh or low-TH accounts that want to reach strong armies fast and don't care about defense or war.",
+  "config": {
+    "game": {
+      "storage_target_fill": 0.75,
+      "walls_per_day_target": 2,
+      "walls_per_run": 2,
+      "wall_reserve_hours": 24,
+      "min_loot_gold_plus_elixir": 600000
+    }
+  }
+}

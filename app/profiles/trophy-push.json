@@ -1,0 +1,14 @@
+{
+  "summary": "Push trophies and league: attack for stars, not loot. Keep heroes up, scout for bases the army can 3-star, upgrade offense first.",
+  "best_for": "Players who want a higher league (better league loot bonus too) more than the fastest builds.",
+  "config": {
+    "game": {
+      "attack_goal": "trophies",
+      "attacks_per_run": 3,
+      "next_per_attack": 15,
+      "min_loot_gold_plus_elixir": 0,
+      "max_heroes_upgrading": 1,
+      "walls_per_day_target": 4
+    }
+  }
+}
